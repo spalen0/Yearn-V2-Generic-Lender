@@ -1,5 +1,5 @@
 from itertools import count
-from brownie import Wei, reverts
+from brownie import Wei, reverts, ZERO_ADDRESS
 import brownie
 
 
@@ -39,5 +39,59 @@ def test_manual_override(
             plugin.deposit({"from": rando})
         with brownie.reverts("!management"):
             plugin.withdraw(1, {"from": rando})
-        with brownie.reverts("!management"):
-            plugin.setRewardStuff(1, 1, {"from": rando})
+
+
+def test_setter_functions(
+    chain,
+    usdc,
+    whale,
+    gov,
+    strategist,
+    GenericCompound,
+    rando,
+    vault,
+    strategy,
+    accounts,
+    cUsdc,
+):
+    # Check original values
+    plugin = GenericCompound.at(strategy.lenders(0))
+
+    assert plugin.keep3r() == ZERO_ADDRESS
+    assert plugin.minCompToSell() == 1 * (10**18)
+    assert plugin.minCompToClaim() == 1 * (10**18)
+
+    minCompToSell = 10**20
+    minCompToClaim = 10**5
+
+    with brownie.reverts():
+        plugin.setKeep3r(accounts[1], {"from": rando})
+    with brownie.reverts():
+        plugin.setRewardStuff(minCompToSell, minCompToClaim, {"from": rando})
+
+    plugin.setKeep3r(accounts[1], {"from": strategist})
+    plugin.setRewardStuff(minCompToSell, minCompToClaim, {"from": strategist})
+
+    assert plugin.keep3r() == accounts[1]
+    assert plugin.minCompToSell() == minCompToSell
+    assert plugin.minCompToClaim() == minCompToClaim
+
+    tx = plugin.cloneCompoundLender(strategy, "CloneGC", cUsdc, {"from": strategist})
+    clone = GenericCompound.at(tx.return_value)
+
+    assert clone.keep3r() == ZERO_ADDRESS
+    # TODO: check these values
+    # assert clone.minCompToSell() == 1 * (10**18)
+    # assert clone.minCompToClaim() == 1 * (10**18)
+
+    with brownie.reverts():
+        clone.setKeep3r(accounts[1], {"from": rando})
+    with brownie.reverts():
+        clone.setRewardStuff(minCompToSell, minCompToClaim, {"from": rando})
+
+    clone.setKeep3r(accounts[1], {"from": strategist})
+    clone.setRewardStuff(minCompToSell, minCompToClaim, {"from": strategist})
+
+    assert clone.keep3r() == accounts[1]
+    assert clone.minCompToSell() == minCompToSell
+    assert clone.minCompToClaim() == minCompToClaim
