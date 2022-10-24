@@ -12,10 +12,11 @@ def live_vault_usdc(pm):
     Vault = pm(config["dependencies"][0]).Vault
     yield Vault.at("0xa354F35829Ae975e850e23e9615b11Da1B3dC4DE")
 
+
 @pytest.fixture
 def live_vault_usdt(pm):
     Vault = pm(config["dependencies"][0]).Vault
-    vault = Vault.at('0xAf322a2eDf31490250fdEb0D712621484b09aBB6')
+    vault = Vault.at("0xAf322a2eDf31490250fdEb0D712621484b09aBB6")
     yield vault
 
 
@@ -32,6 +33,7 @@ def live_GenericCream_usdc_1(GenericCream):
 @pytest.fixture
 def live_GenericDyDx_usdc_1(GenericDyDx):
     yield GenericDyDx.at("0x6C842746F21Ca34542EDC6895dFfc8D4e7D2bC1c")
+
 
 # change these fixtures for generic tests
 @pytest.fixture
@@ -52,9 +54,9 @@ def whale(accounts, web3, weth):
     acc = accounts.at("0xBA12222222228d8Ba445958a75a0704d566BF2C8", force=True)
 
     # lots of weth account
-    #wethAcc = accounts.at("0xeBec795c9c8bBD61FFc14A6662944748F299cAcf", force=True)
-    #weth.approve(acc, 2 ** 256 - 1, {"from": wethAcc})
-    #weth.transfer(acc, weth.balanceOf(wethAcc), {"from": wethAcc})
+    # wethAcc = accounts.at("0xeBec795c9c8bBD61FFc14A6662944748F299cAcf", force=True)
+    # weth.approve(acc, 2 ** 256 - 1, {"from": wethAcc})
+    # weth.transfer(acc, weth.balanceOf(wethAcc), {"from": wethAcc})
 
     assert weth.balanceOf(acc) > 0
     yield acc
@@ -63,7 +65,7 @@ def whale(accounts, web3, weth):
 @pytest.fixture()
 def strategist(accounts, whale, currency):
     decimals = currency.decimals()
-    currency.transfer(accounts[1], 100_000 * (10 ** decimals), {"from": whale})
+    currency.transfer(accounts[1], 100_000 * (10**decimals), {"from": whale})
     yield accounts[1]
 
 
@@ -98,18 +100,22 @@ def keeper(accounts):
 def rando(accounts):
     yield accounts[9]
 
+
 @pytest.fixture
 def gasOracle():
     yield Contract("0xb5e1CAcB567d98faaDB60a1fD4820720141f064F")
 
+
 @pytest.fixture
 def strategist_ms(accounts):
-        # like governance, but better
+    # like governance, but better
     yield accounts.at("0x16388463d60FFE0661Cf7F1f31a7D658aC790ff7", force=True)
+
 
 @pytest.fixture
 def trade_factory():
     yield Contract("0xd6a8ae62f4d593DAf72E2D7c9f7bDB89AB069F06")
+
 
 # specific addresses
 @pytest.fixture
@@ -163,22 +169,16 @@ def vault(gov, rewards, guardian, currency, pm):
 
 @pytest.fixture
 def strategy(
-    strategist,
-    gov,
-    rewards,
-    keeper,
-    vault,
-    cUsdc,
-    Strategy,
-    GenericCompound,
-    chain
+    strategist, gov, rewards, keeper, vault, cUsdc, Strategy, GenericCompound, chain
 ):
     strategy = strategist.deploy(Strategy, vault)
     strategy.setKeeper(keeper, {"from": gov})
     strategy.setWithdrawalThreshold(0, {"from": gov})
     strategy.setRewards(rewards, {"from": strategist})
 
-    compoundPlugin = strategist.deploy(GenericCompound, strategy, "Compound_USDC", cUsdc)
+    compoundPlugin = strategist.deploy(
+        GenericCompound, strategy, "Compound_USDC", cUsdc
+    )
     assert compoundPlugin.apr() > 0
 
     strategy.addLender(compoundPlugin, {"from": gov})

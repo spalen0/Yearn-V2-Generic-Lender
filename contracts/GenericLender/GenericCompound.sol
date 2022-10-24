@@ -29,11 +29,15 @@ contract GenericCompound is GenericLenderBase {
 
     // eth blocks are mined every 12s -> 3600 * 24 * 365 / 12 = 2_628_000
     uint256 private constant BLOCKS_PER_YEAR = 2_628_000;
-    address public constant uniswapRouter = address(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
-    address public constant comp = address(0xc00e94Cb662C3520282E6f5717214004A7f26888);
-    address public constant weth = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
-    ComptrollerI public constant COMPTROLLER = ComptrollerI(0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B);
-    UniswapAnchoredViewI public constant PRICE_FEED = 
+    address public constant uniswapRouter =
+        address(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
+    address public constant comp =
+        address(0xc00e94Cb662C3520282E6f5717214004A7f26888);
+    address public constant weth =
+        address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    ComptrollerI public constant COMPTROLLER =
+        ComptrollerI(0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B);
+    UniswapAnchoredViewI public constant PRICE_FEED =
         UniswapAnchoredViewI(0x65c816077C29b557BEE980ae3cC2dCE80204A0C5);
 
     uint256 public minCompToSell = 1 ether;
@@ -66,7 +70,10 @@ contract GenericCompound is GenericLenderBase {
     }
 
     function _initialize(address _cToken) internal {
-        require(address(cToken) == address(0), "GenericCompound already initialized");
+        require(
+            address(cToken) == address(0),
+            "GenericCompound already initialized"
+        );
         cToken = CErc20I(_cToken);
         require(cToken.underlying() == address(want), "WRONG CTOKEN");
         want.safeApprove(_cToken, uint256(-1));
@@ -97,10 +104,6 @@ contract GenericCompound is GenericLenderBase {
         } else {
             //The current exchange rate as an unsigned integer, scaled by 1e18.
             balance = currentCr.mul(cToken.exchangeRateStored()).div(1e18);
-            // https://docs.compound.finance/v2/ctokens/#exchange-rate
-            // exchange rate as an unsigned integer, scaled by 1 * 10^(18 - 8 + Underlying Token Decimals).
-            // uint256 exRate = cToken.exchangeRateStored();
-            // balance = currentCr.mul(exRate).div(10 ** (10 + vault.decimals()));
         }
     }
 
@@ -126,7 +129,11 @@ contract GenericCompound is GenericLenderBase {
      * @param newAmount Any amount that will be added to the total supply in a deposit
      * @return The reward APR calculated by converting tokens value to USD with a decimal scaled up by 1e18
      */
-    function getRewardAprForSupplyBase(uint256 newAmount) public view returns (uint256) {
+    function getRewardAprForSupplyBase(uint256 newAmount)
+        public
+        view
+        returns (uint256)
+    {
         // The price of the asset in USD as an unsigned integer scaled up by 10 ^ 6
         uint256 rewardTokenPriceInUsd = PRICE_FEED.price("COMP");
 
@@ -140,26 +147,37 @@ contract GenericCompound is GenericLenderBase {
         // Approximate COMP issued per year to suppliers OR borrowers * (1 * 10 ^ 18)
         uint256 compSpeedPerYear = compSpeed * BLOCKS_PER_YEAR;
         // result 1e18 = 1e6 * 1e12 * 1e18 / 1e18
-        uint256 supplyBaseRewardApr = rewardTokenPriceInUsd.mul(1e12)
+        uint256 supplyBaseRewardApr = rewardTokenPriceInUsd
+            .mul(1e12)
             .mul(compSpeedPerYear)
             .div(wantTotalSupply.mul(wantPriceInUsd));
 
         if (vault.decimals() < 18) {
-            // TODO: do this before return
             // scale value to 1e18
-            supplyBaseRewardApr = supplyBaseRewardApr.div(10 ** (18 - vault.decimals()));
+            supplyBaseRewardApr = supplyBaseRewardApr.div(
+                10**(18 - vault.decimals())
+            );
         }
         return supplyBaseRewardApr;
     }
 
-    function withdraw(uint256 amount) external override management returns (uint256) {
+    function withdraw(uint256 amount)
+        external
+        override
+        management
+        returns (uint256)
+    {
         return _withdraw(amount);
     }
 
     /**
      * @notice emergency withdraw. sends balance plus amount to governance
      */
-    function emergencyWithdraw(uint256 amount) external override onlyGovernance {
+    function emergencyWithdraw(uint256 amount)
+        external
+        override
+        onlyGovernance
+    {
         //dont care about errors here. we want to exit what we can
         cToken.redeemUnderlying(amount);
 
@@ -187,10 +205,16 @@ contract GenericCompound is GenericLenderBase {
         uint256 toWithdraw = amount.sub(looseBalance);
         if (toWithdraw <= liquidity) {
             //we can take all
-            require(cToken.redeemUnderlying(toWithdraw) == 0, "ctoken: redeemUnderlying fail");
+            require(
+                cToken.redeemUnderlying(toWithdraw) == 0,
+                "ctoken: redeemUnderlying fail"
+            );
         } else {
             //take all we can
-            require(cToken.redeemUnderlying(liquidity) == 0, "ctoken: redeemUnderlying fail");
+            require(
+                cToken.redeemUnderlying(liquidity) == 0,
+                "ctoken: redeemUnderlying fail"
+            );
         }
 
         _disposeOfComp();
@@ -208,8 +232,13 @@ contract GenericCompound is GenericLenderBase {
             path[1] = weth;
             path[2] = address(want);
 
-            IUniswapV2Router02(uniswapRouter)
-                .swapExactTokensForTokens(compBalance, uint256(0), path, address(this), now);
+            IUniswapV2Router02(uniswapRouter).swapExactTokensForTokens(
+                compBalance,
+                uint256(0),
+                path,
+                address(this),
+                now
+            );
         }
     }
 
@@ -253,7 +282,9 @@ contract GenericCompound is GenericLenderBase {
      * @notice Checks if the harvest should be called
      * @return Should call harvest function
      */
-    function harvestTrigger(uint256 /*callCost*/) external view returns (bool) {
+    function harvestTrigger(
+        uint256 /*callCost*/
+    ) external view returns (bool) {
         if (getRewardsPending() > minCompToClaim) return true;
         if (IERC20(comp).balanceOf(address(this)) > minCompToSell) return true;
     }
@@ -277,7 +308,9 @@ contract GenericCompound is GenericLenderBase {
     }
 
     function hasAssets() external view override returns (bool) {
-        return cToken.balanceOf(address(this)) > 0 || want.balanceOf(address(this)) > 0;
+        return
+            cToken.balanceOf(address(this)) > 0 ||
+            want.balanceOf(address(this)) > 0;
     }
 
     /**
@@ -285,7 +318,12 @@ contract GenericCompound is GenericLenderBase {
      * @param amount to supply
      * @return New lender APR after supplying given amount
      */
-    function aprAfterDeposit(uint256 amount) external view override returns (uint256) {
+    function aprAfterDeposit(uint256 amount)
+        external
+        view
+        override
+        returns (uint256)
+    {
         uint256 cashPrior = want.balanceOf(address(cToken));
         uint256 borrows = cToken.totalBorrows();
         uint256 reserves = cToken.totalReserves();
@@ -293,13 +331,23 @@ contract GenericCompound is GenericLenderBase {
         InterestRateModel model = cToken.interestRateModel();
 
         //the supply rate is derived from the borrow rate, reserve factor and the amount of total borrows.
-        uint256 supplyRate = model.getSupplyRate(cashPrior.add(amount), borrows, reserves, reserverFactor);
+        uint256 supplyRate = model.getSupplyRate(
+            cashPrior.add(amount),
+            borrows,
+            reserves,
+            reserverFactor
+        );
         uint256 newSupply = supplyRate.mul(BLOCKS_PER_YEAR);
         uint256 rewardApr = getRewardAprForSupplyBase(amount);
         return newSupply.add(rewardApr);
     }
 
-    function protectedTokens() internal view override returns (address[] memory) {
+    function protectedTokens()
+        internal
+        view
+        override
+        returns (address[] memory)
+    {
         address[] memory protected = new address[](3);
         protected[0] = address(want);
         protected[1] = address(cToken);
@@ -312,7 +360,10 @@ contract GenericCompound is GenericLenderBase {
      * @param _minCompToSell Minimum value that will be sold
      * @param _minCompToClaim Minimum vaule to claim from compound
      */
-    function setRewardStuff(uint256 _minCompToSell, uint256 _minCompToClaim) external management {
+    function setRewardStuff(uint256 _minCompToSell, uint256 _minCompToClaim)
+        external
+        management
+    {
         minCompToSell = _minCompToSell;
         minCompToClaim = _minCompToClaim;
     }

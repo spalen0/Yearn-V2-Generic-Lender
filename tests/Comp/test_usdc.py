@@ -285,8 +285,13 @@ def test_vault_shares(
     assert (
         gov_share == whale_share and rew_share == 0 and whale_share == amount1
     )  # no profit yet, same shares distribution than initially
-    vaultValue = vault.pricePerShare() * (whale_share + rew_share + gov_share) / (10**decimals)
-    assert (vaultValue > vault.totalAssets() * 0.999 and vaultValue < vault.totalAssets() * 1.001)
+    vaultValue = (
+        vault.pricePerShare() * (whale_share + rew_share + gov_share) / (10**decimals)
+    )
+    assert (
+        vaultValue > vault.totalAssets() * 0.999
+        and vaultValue < vault.totalAssets() * 1.001
+    )
 
     chain.sleep(13 * 1000)
     chain.mine(1000)
@@ -295,14 +300,13 @@ def test_vault_shares(
     gov_share = vault.balanceOf(strategist)
     rew_share = vault.balanceOf(rewards)
     # no profit just aum fee. meaning total balance should be the same
-    assert (
-        (gov_share + whale_share + rew_share) * vault.pricePerShare() / (10 ** decimals)
-        > amount1 * 2 * 0.999
-        and (gov_share + whale_share + rew_share)
-        * vault.pricePerShare()
-        / (10 ** decimals)
-        < amount1 * 2 * 1.001
-    )
+    assert (gov_share + whale_share + rew_share) * vault.pricePerShare() / (
+        10**decimals
+    ) > amount1 * 2 * 0.999 and (
+        gov_share + whale_share + rew_share
+    ) * vault.pricePerShare() / (
+        10**decimals
+    ) < amount1 * 2 * 1.001
     # cUsdc.accrueAccount(strategy.lenders(0), {"from": strategy.lenders(0)})
     chain.sleep(1)
     strategy.harvest({"from": strategist})

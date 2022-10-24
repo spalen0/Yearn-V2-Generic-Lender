@@ -98,6 +98,7 @@ def test_rewards(
     chain.mine(1)
     vault.withdraw({"from": strategist})
 
+
 def test_no_rewards(
     usdc,
     Strategy,
@@ -114,12 +115,12 @@ def test_no_rewards(
     decimals = currency.decimals()
     plugin = GenericCompound.at(strategy.lenders(0))
 
-    usdc.approve(vault, 2 ** 256 - 1, {"from": whale})
-    usdc.approve(vault, 2 ** 256 - 1, {"from": strategist})
+    usdc.approve(vault, 2**256 - 1, {"from": whale})
+    usdc.approve(vault, 2**256 - 1, {"from": strategist})
 
     deposit_limit = 1_000_000_000 * (10 ** (decimals))
     debt_ratio = 10_000
-    vault.addStrategy(strategy, debt_ratio, 0, 2 ** 256 - 1, 500, {"from": gov})
+    vault.addStrategy(strategy, debt_ratio, 0, 2**256 - 1, 500, {"from": gov})
     vault.setDepositLimit(deposit_limit, {"from": gov})
 
     assert deposit_limit == vault.depositLimit()
@@ -156,6 +157,6 @@ def test_no_rewards(
     assert comp.balanceOf(plugin) == 0
     assert plugin.getRewardAprForSupplyBase(0) == 0
 
-    #should still be able to call harvest
+    # should still be able to call harvest
     chain.sleep(1)
     plugin.harvest({"from": strategist})

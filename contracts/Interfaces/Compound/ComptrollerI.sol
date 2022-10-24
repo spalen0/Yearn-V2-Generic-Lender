@@ -5,7 +5,9 @@ pragma experimental ABIEncoderV2;
 import "./CTokenI.sol";
 
 interface ComptrollerI {
-    function enterMarkets(address[] calldata cTokens) external returns (uint256[] memory);
+    function enterMarkets(address[] calldata cTokens)
+        external
+        returns (uint256[] memory);
 
     function exitMarket(address cToken) external returns (uint256);
 
@@ -132,7 +134,7 @@ interface ComptrollerI {
     function claimComp(address holder) external;
 
     function claimComp(address holder, CTokenI[] memory cTokens) external;
-    
+
     /**
      * @notice Claim all comp accrued by the holders
      * @param holders The addresses to claim COMP for
@@ -140,7 +142,12 @@ interface ComptrollerI {
      * @param borrowers Whether or not to claim COMP earned by borrowing
      * @param suppliers Whether or not to claim COMP earned by supplying
      */
-    function claimComp(address[] memory holders, CTokenI[] memory cTokens, bool borrowers, bool suppliers) external;
+    function claimComp(
+        address[] memory holders,
+        CTokenI[] memory cTokens,
+        bool borrowers,
+        bool suppliers
+    ) external;
 
     function compAccrued(address holder) external view returns (uint256);
 

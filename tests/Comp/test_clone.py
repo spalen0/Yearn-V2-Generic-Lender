@@ -4,6 +4,7 @@ from useful_methods import genericStateOfVault, genericStateOfStrat
 import random
 import brownie
 
+
 def test_clone(
     chain,
     usdc,
@@ -38,20 +39,20 @@ def test_clone(
     assert cloned_lender.lenderName() == "ClonedCompUSDC"
 
     cloned_strategy.addLender(cloned_lender, {"from": gov})
-    
+
     with brownie.reverts():
-        cloned_lender.initialize(cUsdc, {'from': gov})
+        cloned_lender.initialize(cUsdc, {"from": gov})
 
     starting_balance = usdc.balanceOf(strategist)
     currency = usdc
     decimals = currency.decimals()
 
-    usdc.approve(vault, 2 ** 256 - 1, {"from": whale})
-    usdc.approve(vault, 2 ** 256 - 1, {"from": strategist})
+    usdc.approve(vault, 2**256 - 1, {"from": whale})
+    usdc.approve(vault, 2**256 - 1, {"from": strategist})
 
     deposit_limit = 1_000_000_000 * (10 ** (decimals))
     debt_ratio = 10_000
-    vault.addStrategy(cloned_strategy, debt_ratio, 0, 2 ** 256 - 1, 500, {"from": gov})
+    vault.addStrategy(cloned_strategy, debt_ratio, 0, 2**256 - 1, 500, {"from": gov})
     vault.setDepositLimit(deposit_limit, {"from": gov})
 
     assert deposit_limit == vault.depositLimit()
@@ -96,7 +97,7 @@ def test_clone(
             shares = vault.balanceOf(whale)
             print("whale has:", shares)
             sharesout = int(shares * percent / 100)
-            expectedout = sharesout * shareprice / 10 ** decimals
+            expectedout = sharesout * shareprice / 10**decimals
 
             balanceBefore = currency.balanceOf(whale)
             vault.withdraw(sharesout, {"from": whale})
@@ -107,14 +108,14 @@ def test_clone(
             assert withdrawn > expectedout * 0.99 and withdrawn < expectedout * 1.01
 
         elif action < 5:
-            depositAm = random.randint(10, 100) * (10 ** decimals)
+            depositAm = random.randint(10, 100) * (10**decimals)
             vault.deposit(depositAm, {"from": whale})
 
     # strategist withdraws
     shareprice = vault.pricePerShare()
 
     shares = vault.balanceOf(strategist)
-    expectedout = shares * shareprice / 10 ** decimals
+    expectedout = shares * shareprice / 10**decimals
     balanceBefore = currency.balanceOf(strategist)
 
     status = cloned_strategy.lendStatuses()
@@ -122,7 +123,8 @@ def test_clone(
     formS = "{:,.0f}"
     for j in status:
         print(
-            f"Lender: {j[0]}, Deposits: {formS.format(j[1]/1e6)}, APR: {form.format(j[2]/1e18)}"
+            f"Lender: {j[0]}, Deposits: {formS.format(j[1]/1e6)}, APR:"
+            f" {form.format(j[2]/1e18)}"
         )
     vault.withdraw(vault.balanceOf(strategist), {"from": strategist})
     balanceAfter = currency.balanceOf(strategist)
