@@ -132,6 +132,17 @@ interface ComptrollerI {
     function claimComp(address holder) external;
 
     function claimComp(address holder, CTokenI[] memory cTokens) external;
+    
+    /**
+     * @notice Claim all comp accrued by the holders
+     * @param holders The addresses to claim COMP for
+     * @param cTokens The list of markets to claim COMP in
+     * @param borrowers Whether or not to claim COMP earned by borrowing
+     * @param suppliers Whether or not to claim COMP earned by supplying
+     */
+    function claimComp(address[] memory holders, CTokenI[] memory cTokens, bool borrowers, bool suppliers) external;
+
+    function compAccrued(address holder) external view returns (uint256);
 
     function markets(address ctoken)
         external

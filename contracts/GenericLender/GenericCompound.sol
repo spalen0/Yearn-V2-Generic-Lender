@@ -4,6 +4,8 @@ pragma experimental ABIEncoderV2;
 
 import "../Interfaces/Compound/CErc20I.sol";
 import "../Interfaces/Compound/InterestRateModel.sol";
+import "../Interfaces/Compound/ComptrollerI.sol";
+import "../Interfaces/Compound/UniswapAnchoredViewI.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
@@ -16,7 +18,7 @@ import "./GenericLenderBase.sol";
 /********************
  *   A lender plugin for LenderYieldOptimiser for any erc20 asset on compound (not eth)
  *   Made by SamPriestley.com
- *   https://github.com/Grandthrax/yearnv2/blob/master/contracts/GenericDyDx/GenericCompound.sol
+ *   https://github.com/Grandthrax/yearnv2/blob/master/contracts/GenericLender/GenericCompound.sol
  *
  ********************* */
 
@@ -25,14 +27,31 @@ contract GenericCompound is GenericLenderBase {
     using Address for address;
     using SafeMath for uint256;
 
-    uint256 private constant blocksPerYear = 2_300_000;
+    // eth blocks are mined every 12s -> 3600 * 24 * 365 / 12 = 2_628_000
+    uint256 private constant BLOCKS_PER_YEAR = 2_628_000;
     address public constant uniswapRouter = address(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
     address public constant comp = address(0xc00e94Cb662C3520282E6f5717214004A7f26888);
     address public constant weth = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    ComptrollerI public constant COMPTROLLER = ComptrollerI(0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B);
+    UniswapAnchoredViewI public constant PRICE_FEED = 
+        UniswapAnchoredViewI(0x65c816077C29b557BEE980ae3cC2dCE80204A0C5);
 
-    uint256 public minCompToSell = 0.5 ether;
+    uint256 public minCompToSell = 1 ether;
+    uint256 public minCompToClaim = 1 ether;
+    address public keep3r;
 
     CErc20I public cToken;
+
+    modifier keepers() {
+        require(
+            msg.sender == address(keep3r) ||
+                msg.sender == address(strategy) ||
+                msg.sender == vault.governance() ||
+                msg.sender == IBaseStrategy(strategy).strategist(),
+            "!keepers"
+        );
+        _;
+    }
 
     constructor(
         address _strategy,
@@ -47,10 +66,11 @@ contract GenericCompound is GenericLenderBase {
     }
 
     function _initialize(address _cToken) internal {
-        require(address(cToken) == address(0), "GenericCream already initialized");
+        require(address(cToken) == address(0), "GenericCompound already initialized");
         cToken = CErc20I(_cToken);
         require(cToken.underlying() == address(want), "WRONG CTOKEN");
         want.safeApprove(_cToken, uint256(-1));
+        IERC20(comp).safeApprove(address(uniswapRouter), type(uint256).max);
     }
 
     function cloneCompoundLender(
@@ -77,6 +97,10 @@ contract GenericCompound is GenericLenderBase {
         } else {
             //The current exchange rate as an unsigned integer, scaled by 1e18.
             balance = currentCr.mul(cToken.exchangeRateStored()).div(1e18);
+            // https://docs.compound.finance/v2/ctokens/#exchange-rate
+            // exchange rate as an unsigned integer, scaled by 1 * 10^(18 - 8 + Underlying Token Decimals).
+            // uint256 exRate = cToken.exchangeRateStored();
+            // balance = currentCr.mul(exRate).div(10 ** (10 + vault.decimals()));
         }
     }
 
@@ -84,8 +108,12 @@ contract GenericCompound is GenericLenderBase {
         return _apr();
     }
 
+    // scaled by 1e18
     function _apr() internal view returns (uint256) {
-        return cToken.supplyRatePerBlock().mul(blocksPerYear);
+        // TODO: apr calculation is relying on usd stablecoin
+        uint256 baseApr = cToken.supplyRatePerBlock().mul(BLOCKS_PER_YEAR);
+        uint256 rewardsApr = getRewardAprForSupplyBase(0);
+        return baseApr.add(rewardsApr);
     }
 
     function weightedApr() external view override returns (uint256) {
@@ -93,11 +121,44 @@ contract GenericCompound is GenericLenderBase {
         return a.mul(_nav());
     }
 
+    /**
+     * @notice Get the current reward for supplying APR in Compound
+     * @param newAmount Any amount that will be added to the total supply in a deposit
+     * @return The reward APR calculated by converting tokens value to USD with a decimal scaled up by 1e18
+     */
+    function getRewardAprForSupplyBase(uint256 newAmount) public view returns (uint256) {
+        // The price of the asset in USD as an unsigned integer scaled up by 10 ^ 6
+        uint256 rewardTokenPriceInUsd = PRICE_FEED.price("COMP");
+
+        // The price of the asset in USD as an unsigned integer scaled up by 10 ^ (36 - underlying asset decimals)
+        uint256 wantPriceInUsd = PRICE_FEED.getUnderlyingPrice(address(cToken));
+
+        uint256 wantTotalSupply = cToken.totalSupply().add(newAmount);
+
+        // COMP issued per block to suppliers OR borrowers * (1 * 10 ^ 18)
+        uint256 compSpeed = COMPTROLLER.compSpeeds(address(cToken));
+        // Approximate COMP issued per year to suppliers OR borrowers * (1 * 10 ^ 18)
+        uint256 compSpeedPerYear = compSpeed * BLOCKS_PER_YEAR;
+        // result 1e18 = 1e6 * 1e12 * 1e18 / 1e18
+        uint256 supplyBaseRewardApr = rewardTokenPriceInUsd.mul(1e12)
+            .mul(compSpeedPerYear)
+            .div(wantTotalSupply.mul(wantPriceInUsd));
+
+        if (vault.decimals() < 18) {
+            // TODO: do this before return
+            // scale value to 1e18
+            supplyBaseRewardApr = supplyBaseRewardApr.div(10 ** (18 - vault.decimals()));
+        }
+        return supplyBaseRewardApr;
+    }
+
     function withdraw(uint256 amount) external override management returns (uint256) {
         return _withdraw(amount);
     }
 
-    //emergency withdraw. sends balance plus amount to governance
+    /**
+     * @notice emergency withdraw. sends balance plus amount to governance
+     */
     function emergencyWithdraw(uint256 amount) external override onlyGovernance {
         //dont care about errors here. we want to exit what we can
         cToken.redeemUnderlying(amount);
@@ -121,20 +182,17 @@ contract GenericCompound is GenericLenderBase {
             return amount;
         }
 
-        //not state changing but OK because of previous call
+        // withdraw all available liqudity from compound
         uint256 liquidity = want.balanceOf(address(cToken));
-
-        if (liquidity > 1) {
-            uint256 toWithdraw = amount.sub(looseBalance);
-
-            if (toWithdraw <= liquidity) {
-                //we can take all
-                require(cToken.redeemUnderlying(toWithdraw) == 0, "ctoken: redeemUnderlying fail");
-            } else {
-                //take all we can
-                require(cToken.redeemUnderlying(liquidity) == 0, "ctoken: redeemUnderlying fail");
-            }
+        uint256 toWithdraw = amount.sub(looseBalance);
+        if (toWithdraw <= liquidity) {
+            //we can take all
+            require(cToken.redeemUnderlying(toWithdraw) == 0, "ctoken: redeemUnderlying fail");
+        } else {
+            //take all we can
+            require(cToken.redeemUnderlying(liquidity) == 0, "ctoken: redeemUnderlying fail");
         }
+
         _disposeOfComp();
         looseBalance = want.balanceOf(address(this));
         want.safeTransfer(address(strategy), looseBalance);
@@ -142,23 +200,76 @@ contract GenericCompound is GenericLenderBase {
     }
 
     function _disposeOfComp() internal {
-        uint256 _comp = IERC20(comp).balanceOf(address(this));
+        uint256 compBalance = IERC20(comp).balanceOf(address(this));
 
-        if (_comp > minCompToSell) {
+        if (compBalance > minCompToSell) {
             address[] memory path = new address[](3);
             path[0] = comp;
             path[1] = weth;
             path[2] = address(want);
 
-            IUniswapV2Router02(uniswapRouter).swapExactTokensForTokens(_comp, uint256(0), path, address(this), now);
+            IUniswapV2Router02(uniswapRouter)
+                .swapExactTokensForTokens(compBalance, uint256(0), path, address(this), now);
         }
     }
 
+    /**
+     * @notice Get pending COMP rewards for supplying want token
+     * @return Amount of pending COMP tokens
+     */
+    function getRewardsPending() public view returns (uint256) {
+        return COMPTROLLER.compAccrued(address(this));
+    }
+
+    /**
+     * @notice Collect all pending COMP rewards for supplying want token
+     */
+    function claimComp() public {
+        if (getRewardsPending() > minCompToClaim) {
+            CTokenI[] memory cTokens = new CTokenI[](1);
+            cTokens[0] = cToken;
+            address[] memory holders = new address[](1);
+            holders[0] = address(this);
+
+            // Claim only rewards for lending to reduce the gas cost
+            COMPTROLLER.claimComp(holders, cTokens, true, false);
+        }
+    }
+
+    /**
+     * @notice Collect rewards, dispose them for want token and supply to protocol
+     */
+    function harvest() external keepers {
+        claimComp();
+        _disposeOfComp();
+
+        uint256 wantBalance = want.balanceOf(address(this));
+        if (wantBalance > 0) {
+            cToken.mint(wantBalance);
+        }
+    }
+
+    /**
+     * @notice Checks if the harvest should be called
+     * @return Should call harvest function
+     */
+    function harvestTrigger(uint256 /*callCost*/) external view returns (bool) {
+        if (getRewardsPending() > minCompToClaim) return true;
+        if (IERC20(comp).balanceOf(address(this)) > minCompToSell) return true;
+    }
+
+    /**
+     * @notice Supplies free want balance to compound
+     */
     function deposit() external override management {
         uint256 balance = want.balanceOf(address(this));
         require(cToken.mint(balance) == 0, "ctoken: mint fail");
     }
 
+    /**
+     * @notice Withdraws asset form compound
+     * @return Is more asset returned than invested
+     */
     function withdrawAll() external override management returns (bool) {
         uint256 invested = _nav();
         uint256 returned = _withdraw(invested);
@@ -166,25 +277,26 @@ contract GenericCompound is GenericLenderBase {
     }
 
     function hasAssets() external view override returns (bool) {
-        //return cToken.balanceOf(address(this)) > 0;
         return cToken.balanceOf(address(this)) > 0 || want.balanceOf(address(this)) > 0;
     }
 
+    /**
+     * @notice Calculate new APR for supplying amount to lender
+     * @param amount to supply
+     * @return New lender APR after supplying given amount
+     */
     function aprAfterDeposit(uint256 amount) external view override returns (uint256) {
         uint256 cashPrior = want.balanceOf(address(cToken));
-
         uint256 borrows = cToken.totalBorrows();
-
         uint256 reserves = cToken.totalReserves();
-
         uint256 reserverFactor = cToken.reserveFactorMantissa();
-
         InterestRateModel model = cToken.interestRateModel();
 
         //the supply rate is derived from the borrow rate, reserve factor and the amount of total borrows.
         uint256 supplyRate = model.getSupplyRate(cashPrior.add(amount), borrows, reserves, reserverFactor);
-
-        return supplyRate.mul(blocksPerYear);
+        uint256 newSupply = supplyRate.mul(BLOCKS_PER_YEAR);
+        uint256 rewardApr = getRewardAprForSupplyBase(amount);
+        return newSupply.add(rewardApr);
     }
 
     function protectedTokens() internal view override returns (address[] memory) {
@@ -194,4 +306,20 @@ contract GenericCompound is GenericLenderBase {
         protected[2] = comp;
         return protected;
     }
+
+    /**
+     * @notice Set values for handling COMP reward token
+     * @param _minCompToSell Minimum value that will be sold
+     * @param _minCompToClaim Minimum vaule to claim from compound
+     */
+    function setRewardStuff(uint256 _minCompToSell, uint256 _minCompToClaim) external management {
+        minCompToSell = _minCompToSell;
+        minCompToClaim = _minCompToClaim;
+    }
+
+    function setKeep3r(address _keep3r) external management {
+        keep3r = _keep3r;
+    }
+
+    // TODO: add ySwap
 }

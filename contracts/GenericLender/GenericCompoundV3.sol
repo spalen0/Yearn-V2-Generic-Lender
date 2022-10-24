@@ -83,6 +83,7 @@ contract GenericCompoundV3 is GenericLenderBase {
         want.safeApprove(_comet, type(uint256).max);
         IERC20(comp).safeApprove(address(router), type(uint256).max);
 
+        // TODO: change the values
         minCompToSell = 0.05 ether;
         minRewardToHarvest = 10 ether;
     }
