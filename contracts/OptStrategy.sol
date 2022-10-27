@@ -28,7 +28,7 @@ contract OptStrategy is BaseStrategy {
     using Address for address;
     using SafeMath for uint256;
 
-    uint256 public withdrawalThreshold = 1e16;
+    uint256 public withdrawalThreshold = 1e12;
     uint256 public constant SECONDSPERYEAR = 31556952;
 
     uint8 public constant DEFAULT_LENDER_INDEX = uint8(-1);
