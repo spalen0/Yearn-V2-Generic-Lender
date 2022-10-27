@@ -169,11 +169,11 @@ def strategy(
     keeper,
     vault,
     cUsdc,
-    Strategy,
+    OptStrategy,
     GenericCompoundV3,
     chain
 ):
-    strategy = strategist.deploy(Strategy, vault)
+    strategy = strategist.deploy(OptStrategy, vault)
     strategy.setKeeper(keeper, {"from": gov})
     strategy.setWithdrawalThreshold(0, {"from": gov})
     strategy.setRewards(rewards, {"from": strategist})

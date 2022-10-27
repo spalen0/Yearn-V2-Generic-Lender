@@ -10,7 +10,6 @@ import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import {BaseStrategy} from "@yearnvaults/contracts/BaseStrategy.sol";
 
 import "./GenericLender/IGenericLender.sol";
-import "./WantToEthOracle/IWantToEth.sol";
 
 /********************
  *
@@ -29,12 +28,12 @@ contract OptStrategy is BaseStrategy {
     using Address for address;
     using SafeMath for uint256;
 
-    uint256 public withdrawalThreshold = 1e12;
+    uint256 public withdrawalThreshold = 1e16;
     uint256 public constant SECONDSPERYEAR = 31556952;
 
+    uint8 public constant DEFAULT_LENDER_INDEX = uint8(-1);
+    uint8 public activeLenderIndex = DEFAULT_LENDER_INDEX;
     IGenericLender[] public lenders;
-    bool public externalOracle; // default is false
-    address public wantToEthOracle;
 
     event Cloned(address indexed clone);
 
@@ -82,25 +81,21 @@ contract OptStrategy is BaseStrategy {
         withdrawalThreshold = _threshold;
     }
 
-    function setPriceOracle(address _oracle) external onlyAuthorized {
-        wantToEthOracle = _oracle;
-    }
-
     function name() external view override returns (string memory) {
-        return "StrategyLenderYieldOptimiser";
+        return "StrategySingleActiveLenderYieldOptimiser";
     }
 
     //management functions
     //add lenders for the strategy to choose between
     // only governance to stop strategist adding dodgy lender
     function addLender(address a) public onlyGovernance {
-        IGenericLender n = IGenericLender(a);
-        require(n.strategy() == address(this), "Undocked Lender");
+        IGenericLender lender = IGenericLender(a);
+        require(lender.strategy() == address(this), "Undocked Lender");
 
         for (uint256 i = 0; i < lenders.length; i++) {
-            require(a != address(lenders[i]), "Already Added");
+            require(a != address(lenders[i]), "Already added");
         }
-        lenders.push(n);
+        lenders.push(lender);
     }
 
     //but strategist can remove for safety
@@ -116,10 +111,12 @@ contract OptStrategy is BaseStrategy {
     function _removeLender(address a, bool force) internal {
         for (uint256 i = 0; i < lenders.length; i++) {
             if (a == address(lenders[i])) {
-                bool allWithdrawn = lenders[i].withdrawAll();
-
-                if (!force) {
-                    require(allWithdrawn, "WITHDRAW FAILED");
+                if (i == activeLenderIndex) {
+                    bool allWithdrawn = lenders[i].withdrawAll();
+                    if (!force) {
+                        require(allWithdrawn, "Withdraw failed");
+                    }
+                    activeLenderIndex = DEFAULT_LENDER_INDEX;
                 }
 
                 //put the last index here
@@ -138,11 +135,11 @@ contract OptStrategy is BaseStrategy {
                 return;
             }
         }
-        require(false, "NOT LENDER");
+        require(false, "Not lender");
     }
 
     //we could make this more gas efficient but it is only used by a view function
-    struct lendStatus {
+    struct LendStatus {
         string name;
         uint256 assets;
         uint256 rate;
@@ -150,10 +147,10 @@ contract OptStrategy is BaseStrategy {
     }
 
     //Returns the status of all lenders attached the strategy
-    function lendStatuses() public view returns (lendStatus[] memory) {
-        lendStatus[] memory statuses = new lendStatus[](lenders.length);
+    function lendStatuses() public view returns (LendStatus[] memory) {
+        LendStatus[] memory statuses = new LendStatus[](lenders.length);
         for (uint256 i = 0; i < lenders.length; i++) {
-            lendStatus memory s;
+            LendStatus memory s;
             s.name = lenders[i].lenderName();
             s.add = address(lenders[i]);
             s.assets = lenders[i].nav();
@@ -166,151 +163,54 @@ contract OptStrategy is BaseStrategy {
 
     // lent assets plus loose assets
     function estimatedTotalAssets() public view override returns (uint256) {
-        uint256 nav = lentTotalAssets();
-        nav = nav.add(want.balanceOf(address(this)));
-
-        return nav;
+        if (activeLenderIndex == DEFAULT_LENDER_INDEX) {
+            return 0;
+        }
+        return lenders[activeLenderIndex].nav().add(want.balanceOf(address(this)));
     }
 
     function numLenders() public view returns (uint256) {
         return lenders.length;
     }
 
-    //the weighted apr of all lenders. sum(nav * apr)/totalNav
+    //the weighted apr = (nav * apr)/totalNav
     function estimatedAPR() public view returns (uint256) {
         uint256 bal = estimatedTotalAssets();
-        if (bal == 0) {
+        if (bal == 0 || activeLenderIndex == DEFAULT_LENDER_INDEX) {
             return 0;
         }
-
-        uint256 weightedAPR = 0;
-
-        for (uint256 i = 0; i < lenders.length; i++) {
-            weightedAPR = weightedAPR.add(lenders[i].weightedApr());
-        }
-
-        return weightedAPR.div(bal);
+        return lenders[activeLenderIndex].weightedApr().div(bal);
     }
 
-    //Estimates the impact on APR if we add more money. It does not take into account adjusting position
-    function _estimateDebtLimitIncrease(uint256 change) internal view returns (uint256) {
-        uint256 highestAPR = 0;
-        uint256 aprChoice = 0;
-        uint256 assets = 0;
-
-        for (uint256 i = 0; i < lenders.length; i++) {
-            uint256 apr = lenders[i].aprAfterDeposit(change);
-            if (apr > highestAPR) {
-                aprChoice = i;
-                highestAPR = apr;
-                assets = lenders[i].nav();
-            }
-        }
-
-        uint256 weightedAPR = highestAPR.mul(assets.add(change));
-
-        for (uint256 i = 0; i < lenders.length; i++) {
-            if (i != aprChoice) {
-                weightedAPR = weightedAPR.add(lenders[i].weightedApr());
-            }
-        }
-
-        uint256 bal = estimatedTotalAssets().add(change);
-
-        return weightedAPR.div(bal);
-    }
-
-    //Estimates debt limit decrease. It is not accurate and should only be used for very broad decision making
-    function _estimateDebtLimitDecrease(uint256 change) internal view returns (uint256) {
-        uint256 lowestApr = uint256(-1);
-        uint256 aprChoice = 0;
-
-        for (uint256 i = 0; i < lenders.length; i++) {
-            uint256 apr = lenders[i].aprAfterDeposit(change);
-            if (apr < lowestApr) {
-                aprChoice = i;
-                lowestApr = apr;
-            }
-        }
-
-        uint256 weightedAPR = 0;
-
-        for (uint256 i = 0; i < lenders.length; i++) {
-            if (i != aprChoice) {
-                weightedAPR = weightedAPR.add(lenders[i].weightedApr());
-            } else {
-                uint256 asset = lenders[i].nav();
-                if (asset < change) {
-                    //simplistic. not accurate
-                    change = asset;
-                }
-                weightedAPR = weightedAPR.add(lowestApr.mul(change));
-            }
-        }
-        uint256 bal = estimatedTotalAssets().add(change);
-        return weightedAPR.div(bal);
-    }
-
-    //estimates highest and lowest apr lenders. Public for debugging purposes but not much use to general public
+    //estimates highest apr lenders. Public for debugging purposes but not much use to general public
     function estimateAdjustPosition()
         public
         view
         returns (
-            uint256 _lowest,
-            uint256 _lowestApr,
-            uint256 _highest,
-            uint256 _potential
+            uint8 _highestIndex,
+            uint256 _potentialApr
         )
     {
-        //all loose assets are to be invested
-        uint256 looseAssets = want.balanceOf(address(this));
-
-        // our simple algo
-        // get the lowest apr strat
-        // cycle through and see who could take its funds plus want for the highest apr
-        _lowestApr = uint256(-1);
-        _lowest = 0;
-        uint256 lowestNav = 0;
-        for (uint256 i = 0; i < lenders.length; i++) {
-            if (lenders[i].hasAssets()) {
-                uint256 apr = lenders[i].apr();
-                if (apr < _lowestApr) {
-                    _lowestApr = apr;
-                    _lowest = i;
-                    lowestNav = lenders[i].nav();
-                }
-            }
-        }
-
-        uint256 toAdd = lowestNav.add(looseAssets);
-
-        uint256 highestApr = 0;
-        _highest = 0;
-
-        for (uint256 i = 0; i < lenders.length; i++) {
+        //all assets are to be invested
+        uint256 totalAsset = estimatedTotalAssets();
+        for (uint8 i = 0; i < lenders.length; i++) {
             uint256 apr;
-            apr = lenders[i].aprAfterDeposit(looseAssets);
+            apr = lenders[i].aprAfterDeposit(totalAsset);
 
-            if (apr > highestApr) {
-                highestApr = apr;
-                _highest = i;
+            if (apr > _potentialApr) {
+                _potentialApr = apr;
+                _highestIndex = i;
             }
         }
-
-        //if we can improve apr by withdrawing we do so
-        _potential = lenders[_highest].aprAfterDeposit(toAdd);
     }
 
     //gives estiomate of future APR with a change of debt limit. Useful for governance to decide debt limits
     function estimatedFutureAPR(uint256 newDebtLimit) public view returns (uint256) {
-        uint256 oldDebtLimit = vault.strategies(address(this)).totalDebt;
-        uint256 change;
-        if (oldDebtLimit < newDebtLimit) {
-            change = newDebtLimit - oldDebtLimit;
-            return _estimateDebtLimitIncrease(change);
+        if (activeLenderIndex == DEFAULT_LENDER_INDEX) {
+            (uint8 highestIndex, uint256 potentialApr) = estimateAdjustPosition();
+            return lenders[highestIndex].aprAfterDeposit(newDebtLimit);
         } else {
-            change = oldDebtLimit - newDebtLimit;
-            return _estimateDebtLimitDecrease(change);
+            return lenders[activeLenderIndex].aprAfterDeposit(newDebtLimit);
         }
     }
 
@@ -340,9 +240,7 @@ contract OptStrategy is BaseStrategy {
         _debtPayment = _debtOutstanding;
 
         uint256 lentAssets = lentTotalAssets();
-
         uint256 looseAssets = want.balanceOf(address(this));
-
         uint256 total = looseAssets.add(lentAssets);
 
         if (lentAssets == 0) {
@@ -404,108 +302,58 @@ contract OptStrategy is BaseStrategy {
 
     /*
      * Key logic.
-     *   The algorithm moves assets from lowest return to highest
-     *   like a very slow idiots bubble sort
-     *   we ignore debt outstanding for an easy life
+     *   The algorithm checks if there is a lender with a higher APR and moves the funds to it.
      */
     function adjustPosition(uint256 _debtOutstanding) internal override {
-        _debtOutstanding; //ignored. we handle it in prepare return
         //emergency exit is dealt with at beginning of harvest
-        if (emergencyExit) {
+        if (emergencyExit || lenders.length == 0) {
             return;
         }
+        
+        // defualt value is 0
+        uint8 newActiveLenderIndex;
+        if (lenders.length > 1) {
+            // find highest apr if there are more than 1 lender
+            (uint8 highestIndex, uint256 potentialApr) = estimateAdjustPosition();
+            newActiveLenderIndex = highestIndex;
+        }
+        // set functions is optimised for setting the same index again
+        _setActiveLender(newActiveLenderIndex);
+        
+        uint256 balance = want.balanceOf(address(this));
+        if (balance > _debtOutstanding) {
+            IGenericLender activeLender = lenders[activeLenderIndex];
+            want.safeTransfer(address(activeLender), balance);
+            activeLender.deposit();
+        }
+    }
 
-        //we just keep all money in want if we dont have any lenders
-        if (lenders.length == 0) {
+    // function getActiveLender() public view returns (IGenericLender) {
+    //     require(activeLenderIndex != DEFAULT_LENDER_INDEX, "Active lender not set");
+    //     return lenders[activeLenderIndex];
+    // }
+
+    function _setActiveLender(uint8 lenderIndex) internal {
+        require(lenderIndex < lenders.length, "Invalid index");
+
+        if (lenderIndex == activeLenderIndex) {
+            // skip setting the same lender as active, and lender is set
             return;
         }
-
-        (uint256 lowest, uint256 lowestApr, uint256 highest, uint256 potential) = estimateAdjustPosition();
-
-        if (potential > lowestApr) {
-            //apr should go down after deposit so wont be withdrawing from self
-            lenders[lowest].withdrawAll();
+        if (activeLenderIndex != DEFAULT_LENDER_INDEX) {
+            // withdraw liquidity only if the active lender is set
+            bool allWithdrawn = lenders[activeLenderIndex].withdrawAll();
+            require(allWithdrawn, "Withdraw failed");
         }
-
-        uint256 bal = want.balanceOf(address(this));
-        if (bal > 0) {
-            want.safeTransfer(address(lenders[highest]), bal);
-            lenders[highest].deposit();
-        }
+        activeLenderIndex = lenderIndex;
     }
 
-    struct lenderRatio {
-        address lender;
-        //share x 1000
-        uint16 share;
-    }
-
-    //share must add up to 1000. 500 means 50% etc
-    function manualAllocation(lenderRatio[] memory _newPositions) public onlyAuthorized {
-        uint256 share = 0;
-
-        for (uint256 i = 0; i < lenders.length; i++) {
-            lenders[i].withdrawAll();
-        }
-
-        uint256 assets = want.balanceOf(address(this));
-
-        for (uint256 i = 0; i < _newPositions.length; i++) {
-            bool found = false;
-
-            //might be annoying and expensive to do this second loop but worth it for safety
-            for (uint256 j = 0; j < lenders.length; j++) {
-                if (address(lenders[j]) == _newPositions[i].lender) {
-                    found = true;
-                }
-            }
-            require(found, "NOT LENDER");
-
-            share = share.add(_newPositions[i].share);
-            uint256 toSend = assets.mul(_newPositions[i].share).div(1000);
-            want.safeTransfer(_newPositions[i].lender, toSend);
-            IGenericLender(_newPositions[i].lender).deposit();
-        }
-
-        require(share == 1000, "SHARE!=1000");
-    }
-
-    //cycle through withdrawing from worst rate first
     function _withdrawSome(uint256 _amount) internal returns (uint256 amountWithdrawn) {
-        if (lenders.length == 0) {
+        // dont withdraw dust
+        if (_amount < withdrawalThreshold || activeLenderIndex == DEFAULT_LENDER_INDEX) {
             return 0;
         }
-
-        //dont withdraw dust
-        if (_amount < withdrawalThreshold) {
-            return 0;
-        }
-
-        amountWithdrawn = 0;
-        //most situations this will only run once. Only big withdrawals will be a gas guzzler
-        uint256 j = 0;
-        while (amountWithdrawn < _amount) {
-            uint256 lowestApr = uint256(-1);
-            uint256 lowest = 0;
-            for (uint256 i = 0; i < lenders.length; i++) {
-                if (lenders[i].hasAssets()) {
-                    uint256 apr = lenders[i].apr();
-                    if (apr < lowestApr) {
-                        lowestApr = apr;
-                        lowest = i;
-                    }
-                }
-            }
-            if (!lenders[lowest].hasAssets()) {
-                return amountWithdrawn;
-            }
-            amountWithdrawn = amountWithdrawn.add(lenders[lowest].withdraw(_amount - amountWithdrawn));
-            j++;
-            //dont want infinite loop
-            if (j >= 6) {
-                return amountWithdrawn;
-            }
-        }
+        return lenders[activeLenderIndex].withdraw(_amount);
     }
 
     /*
@@ -528,19 +376,18 @@ contract OptStrategy is BaseStrategy {
         }
     }
 
+    // Uniswap pools on Optimism are not suitable for providing oracle prices, as this high-latency 
+    // https://docs.uniswap.org/protocol/concepts/V3-overview/oracle#optimism
     function ethToWant(uint256 _amount) public override view returns (uint256) {
-        //two situations
-        //1 we use external oracle
-        //1 return _amount.
-        if (wantToEthOracle != address(0)) {
-            return IWantToEth(wantToEthOracle).ethToWant(_amount);
-        } else {
-            return _amount;
-        }
+        return _amount;
     }
 
     function liquidateAllPositions() internal override returns (uint256 _amountFreed) {
-        _amountFreed = _withdrawSome(lentTotalAssets());
+        // for safety, withdraw from all lenders, not just active one
+        for (uint256 i = 0; i < lenders.length; i++) {
+            lenders[i].withdrawAll();
+        }
+        return want.balanceOf(address(this));
     }
 
     /*
