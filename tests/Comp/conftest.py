@@ -25,25 +25,10 @@ def live_GenericCompound_usdc_1(GenericCompound):
     yield GenericCompound.at("0x33D4c129586562adfd993ebb54E830481F31ef37")
 
 
-@pytest.fixture
-def live_GenericCream_usdc_1(GenericCream):
-    yield GenericCream.at("0x1bAaCef951d24c5d70a8cA88D89cE16B37472fB3")
-
-
-@pytest.fixture
-def live_GenericDyDx_usdc_1(GenericDyDx):
-    yield GenericDyDx.at("0x6C842746F21Ca34542EDC6895dFfc8D4e7D2bC1c")
-
-
 # change these fixtures for generic tests
 @pytest.fixture
 def currency(dai, usdc, weth):
     yield usdc
-
-
-@pytest.fixture(autouse=True)
-def isolation(fn_isolation):
-    pass
 
 
 @pytest.fixture
@@ -67,11 +52,6 @@ def strategist(accounts, whale, currency):
     decimals = currency.decimals()
     currency.transfer(accounts[1], 100_000 * (10**decimals), {"from": whale})
     yield accounts[1]
-
-
-@pytest.fixture
-def samdev(accounts):
-    yield accounts.at("0xC3D6880fD95E06C816cB030fAc45b3ffe3651Cb0", force=True)
 
 
 @pytest.fixture
@@ -99,17 +79,6 @@ def keeper(accounts):
 @pytest.fixture
 def rando(accounts):
     yield accounts[9]
-
-
-@pytest.fixture
-def gasOracle():
-    yield Contract("0xb5e1CAcB567d98faaDB60a1fD4820720141f064F")
-
-
-@pytest.fixture
-def strategist_ms(accounts):
-    # like governance, but better
-    yield accounts.at("0x16388463d60FFE0661Cf7F1f31a7D658aC790ff7", force=True)
 
 
 @pytest.fixture
@@ -141,16 +110,6 @@ def cdai(interface):
 @pytest.fixture
 def cUsdc(interface):
     yield interface.CErc20I("0x39AA39c021dfbaE8faC545936693aC917d5E7563")
-
-
-@pytest.fixture
-def crUsdc(interface):
-    yield interface.CErc20I("0x44fbeBd2F576670a6C33f6Fc0B00aA8c5753b322")
-
-
-@pytest.fixture
-def aUsdc(interface):
-    yield interface.IAToken("0xBcca60bB61934080951369a648Fb03DF4F96263C")
 
 
 @pytest.fixture(scope="module", autouse=True)

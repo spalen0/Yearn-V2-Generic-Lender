@@ -6,7 +6,15 @@ import brownie
 
 
 def test_good_migration(
-    usdc, Strategy, chain, whale, gov, strategist, rando, vault, strategy, fn_isolation
+    usdc, 
+    Strategy, 
+    chain, 
+    whale, 
+    gov, 
+    strategist, 
+    rando, 
+    vault, 
+    strategy,
 ):
     currency = usdc
 
@@ -57,7 +65,6 @@ def test_good_migration(
 
 def test_normal_activity(
     usdc,
-    Strategy,
     cUsdc,
     chain,
     whale,
@@ -66,8 +73,6 @@ def test_normal_activity(
     rando,
     vault,
     strategy,
-    fn_isolation,
-    aUsdc,
 ):
     starting_balance = usdc.balanceOf(strategist)
     currency = usdc
@@ -175,7 +180,14 @@ def test_normal_activity(
 
 
 def test_debt_increase(
-    usdc, Strategy, chain, whale, gov, strategist, rando, vault, strategy, fn_isolation
+    usdc,
+    chain, 
+    whale, 
+    gov, 
+    strategist, 
+    rando, 
+    vault, 
+    strategy,
 ):
 
     currency = usdc
@@ -237,14 +249,12 @@ def test_vault_shares(
     chain,
     vault,
     cUsdc,
-    crUsdc,
-    rewards,
     currency,
+    rewards,
     gov,
     interface,
     whale,
     strategist,
-    fn_isolation,
 ):
     deposit_limit = 100_000_000 * 1e6
     debt_ratio = 10_000
@@ -347,13 +357,11 @@ def test_apr(
     chain,
     vault,
     cUsdc,
-    rewards,
     currency,
     gov,
     interface,
     whale,
     strategist,
-    fn_isolation,
     GenericCompound,
 ):
     decimals = currency.decimals()

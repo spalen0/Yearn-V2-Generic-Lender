@@ -8,9 +8,6 @@ import brownie
 # this test cycles through every plugin and checks we can add/remove lender and withdraw
 def test_withdrawals_work(
     usdc,
-    Strategy,
-    crUsdc,
-    cUsdc,
     interface,
     chain,
     whale,
@@ -19,7 +16,6 @@ def test_withdrawals_work(
     rando,
     vault,
     strategy,
-    fn_isolation,
 ):
     starting_balance = usdc.balanceOf(strategist)
     currency = usdc
