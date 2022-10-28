@@ -2,18 +2,18 @@
 pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
+import "./GenericLenderBase.sol";
 import "../Interfaces/Compound/CErc20I.sol";
 import "../Interfaces/Compound/InterestRateModel.sol";
 import "../Interfaces/Compound/ComptrollerI.sol";
 import "../Interfaces/Compound/UniswapAnchoredViewI.sol";
+import "../Interfaces/UniswapInterfaces/IUniswapV2Router02.sol";
+import "../Interfaces/ySwaps/ITradeFactory.sol";
+
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-
-import "../Interfaces/UniswapInterfaces/IUniswapV2Router02.sol";
-
-import "./GenericLenderBase.sol";
 
 /********************
  *   A lender plugin for LenderYieldOptimiser for any erc20 asset on compound (not eth)
@@ -40,6 +40,7 @@ contract GenericCompound is GenericLenderBase {
     UniswapAnchoredViewI public constant PRICE_FEED =
         UniswapAnchoredViewI(0x65c816077C29b557BEE980ae3cC2dCE80204A0C5);
 
+    address public tradeFactory;
     uint256 public minCompToSell = 1 ether;
     uint256 public minCompToClaim = 1 ether;
     address public keep3r;
@@ -217,7 +218,6 @@ contract GenericCompound is GenericLenderBase {
             );
         }
 
-        _disposeOfComp();
         looseBalance = want.balanceOf(address(this));
         want.safeTransfer(address(strategy), looseBalance);
         return looseBalance;
@@ -270,8 +270,10 @@ contract GenericCompound is GenericLenderBase {
      */
     function harvest() external keepers {
         claimComp();
-        _disposeOfComp();
-
+        if (tradeFactory == address(0)) {
+            _disposeOfComp();
+        }
+        
         uint256 wantBalance = want.balanceOf(address(this));
         if (wantBalance > 0) {
             cToken.mint(wantBalance);
@@ -372,5 +374,27 @@ contract GenericCompound is GenericLenderBase {
         keep3r = _keep3r;
     }
 
-    // TODO: add ySwap
+    // ---------------------- YSWAPS FUNCTIONS ----------------------
+    function setTradeFactory(address _tradeFactory) external onlyGovernance {
+        if (tradeFactory != address(0)) {
+            _removeTradeFactoryPermissions();
+        }
+
+        ITradeFactory tf = ITradeFactory(_tradeFactory);
+
+        IERC20(comp).safeApprove(_tradeFactory, type(uint256).max);
+        tf.enable(comp, address(want));
+        
+        tradeFactory = _tradeFactory;
+    }
+
+    function removeTradeFactoryPermissions() external management {
+        _removeTradeFactoryPermissions();
+    }
+
+    function _removeTradeFactoryPermissions() internal {
+        IERC20(comp).safeApprove(tradeFactory, 0);
+        
+        tradeFactory = address(0);
+    }
 }
