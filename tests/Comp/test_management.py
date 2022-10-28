@@ -4,14 +4,14 @@ import brownie
 
 
 def test_manual_override(
-    strategy, 
-    chain, 
-    vault, 
-    currency, 
-    interface, 
-    whale, 
-    strategist, 
-    gov, 
+    strategy,
+    chain,
+    vault,
+    currency,
+    interface,
+    whale,
+    strategist,
+    gov,
     rando,
 ):
 

@@ -6,14 +6,14 @@ import brownie
 
 
 def test_good_migration(
-    usdc, 
-    Strategy, 
-    chain, 
-    whale, 
-    gov, 
-    strategist, 
-    rando, 
-    vault, 
+    usdc,
+    Strategy,
+    chain,
+    whale,
+    gov,
+    strategist,
+    rando,
+    vault,
     strategy,
 ):
     currency = usdc
@@ -181,12 +181,12 @@ def test_normal_activity(
 
 def test_debt_increase(
     usdc,
-    chain, 
-    whale, 
-    gov, 
-    strategist, 
-    rando, 
-    vault, 
+    chain,
+    whale,
+    gov,
+    strategist,
+    rando,
+    vault,
     strategy,
 ):
 

@@ -178,12 +178,12 @@ def test_trade_factory(
     decimals = currency.decimals()
     plugin = GenericCompound.at(strategy.lenders(0))
 
-    usdc.approve(vault, 2 ** 256 - 1, {"from": whale})
-    usdc.approve(vault, 2 ** 256 - 1, {"from": strategist})
+    usdc.approve(vault, 2**256 - 1, {"from": whale})
+    usdc.approve(vault, 2**256 - 1, {"from": strategist})
 
     deposit_limit = 1_000_000_000 * (10 ** (decimals))
     debt_ratio = 10_000
-    vault.addStrategy(strategy, debt_ratio, 0, 2 ** 256 - 1, 500, {"from": gov})
+    vault.addStrategy(strategy, debt_ratio, 0, 2**256 - 1, 500, {"from": gov})
     vault.setDepositLimit(deposit_limit, {"from": gov})
 
     assert deposit_limit == vault.depositLimit()
@@ -211,15 +211,15 @@ def test_trade_factory(
     vault.deposit(whale_deposit, {"from": whale})
     assert strategy.harvestTrigger(1000) == True
     assert plugin.harvestTrigger(10) == False
-    
+
     chain.sleep(1)
     strategy.harvest({"from": strategist})
 
-    #send come comp to the strategy
+    # send come comp to the strategy
     comp = interface.ERC20(plugin.comp())
-    toSend = 10 * (10 **18)
+    toSend = 10 * (10**18)
     comp.transfer(plugin.address, toSend, {"from": whale})
-    assert comp.balanceOf(plugin.address) == toSend     
+    assert comp.balanceOf(plugin.address) == toSend
     assert plugin.harvestTrigger(10) == True
 
     before_bal = plugin.underlyingBalanceStored()
@@ -235,8 +235,8 @@ def test_trade_factory(
 
     plugin.harvest({"from": gov})
 
-    #nothing should have been sold because ySwap is set
-    assert comp.balanceOf(plugin.address) == toSend  
+    # nothing should have been sold because ySwap is set
+    assert comp.balanceOf(plugin.address) == toSend
     token_in = comp
     token_out = currency
 
@@ -245,7 +245,9 @@ def test_trade_factory(
     amount_in = token_in.balanceOf(plugin.address)
     assert amount_in > 0
 
-    router = WeirollContract.createContract(Contract("0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"))
+    router = WeirollContract.createContract(
+        Contract("0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D")
+    )
     receiver = plugin
 
     planner = WeirollPlanner(trade_factory)
@@ -255,9 +257,7 @@ def test_trade_factory(
     if currency.symbol() == "WETH":
         route = [token_in.address, currency.address]
     else:
-        route = [
-            token_in.address, weth.address, currency.address
-        ]
+        route = [token_in.address, weth.address, currency.address]
 
     planner.add(
         token_in.transferFrom(
@@ -267,20 +267,11 @@ def test_trade_factory(
         )
     )
 
-    planner.add(
-        token_in.approve(
-            router.address,
-            amount_in
-        )
-    )
+    planner.add(token_in.approve(router.address, amount_in))
 
     planner.add(
         router.swapExactTokensForTokens(
-            amount_in,
-            0,
-            route,
-            receiver.address,
-            2**256 - 1
+            amount_in, 0, route, receiver.address, 2**256 - 1
         )
     )
 
@@ -302,8 +293,9 @@ def test_trade_factory(
     formS = "{:,.0f}"
     for j in status:
         print(
-            f"Lender: {j[0]}, Deposits: {formS.format(j[1]/1e6)}, APR: {form.format(j[2]/1e18)}"
+            f"Lender: {j[0]}, Deposits: {formS.format(j[1]/1e6)}, APR:"
+            f" {form.format(j[2]/1e18)}"
         )
-    chain.sleep(6*3600)
+    chain.sleep(6 * 3600)
     chain.mine(1)
     vault.withdraw({"from": strategist})
