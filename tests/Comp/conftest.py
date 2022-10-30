@@ -32,6 +32,11 @@ def currency(dai, usdc, weth):
 
 
 @pytest.fixture
+def compCurrency(cUsdc, cDai):
+    yield cUsdc
+
+
+@pytest.fixture
 def whale(accounts, web3, weth):
     # big binance7 wallet
     # acc = accounts.at('0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8', force=True)
@@ -86,7 +91,7 @@ def trade_factory():
     yield Contract("0xd6a8ae62f4d593DAf72E2D7c9f7bDB89AB069F06")
 
 
-# specific addresses
+# specific token addresses
 @pytest.fixture
 def usdc(interface):
     yield interface.ERC20("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
@@ -103,7 +108,7 @@ def weth(interface):
 
 
 @pytest.fixture
-def cdai(interface):
+def cDai(interface):
     yield interface.CErc20I("0x5d3a536e4d6dbd6114cc1ead35777bab948e3643")
 
 
@@ -128,7 +133,15 @@ def vault(gov, rewards, guardian, currency, pm):
 
 @pytest.fixture
 def strategy(
-    strategist, gov, rewards, keeper, vault, cUsdc, Strategy, GenericCompound, chain
+    strategist,
+    gov,
+    rewards,
+    keeper,
+    vault,
+    Strategy,
+    GenericCompound,
+    currency,
+    compCurrency,
 ):
     strategy = strategist.deploy(Strategy, vault)
     strategy.setKeeper(keeper, {"from": gov})
@@ -136,7 +149,7 @@ def strategy(
     strategy.setRewards(rewards, {"from": strategist})
 
     compoundPlugin = strategist.deploy(
-        GenericCompound, strategy, "Compound_USDC", cUsdc
+        GenericCompound, strategy, "Compound_" + currency.symbol(), compCurrency
     )
     assert compoundPlugin.apr() > 0
 

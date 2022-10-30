@@ -7,7 +7,6 @@ import brownie
 
 # this test cycles through every plugin and checks we can add/remove lender and withdraw
 def test_withdrawals_work(
-    usdc,
     interface,
     chain,
     whale,
@@ -16,13 +15,13 @@ def test_withdrawals_work(
     rando,
     vault,
     strategy,
+    currency,
 ):
-    starting_balance = usdc.balanceOf(strategist)
-    currency = usdc
+    starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
 
-    usdc.approve(vault, 2**256 - 1, {"from": whale})
-    usdc.approve(vault, 2**256 - 1, {"from": strategist})
+    currency.approve(vault, 2**256 - 1, {"from": whale})
+    currency.approve(vault, 2**256 - 1, {"from": strategist})
 
     deposit_limit = 1_000_000_000 * 10**decimals
     debt_ratio = 10000

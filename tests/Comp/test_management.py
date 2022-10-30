@@ -51,7 +51,6 @@ def test_manual_override(
 
 def test_setter_functions(
     chain,
-    usdc,
     whale,
     gov,
     strategist,
@@ -60,7 +59,7 @@ def test_setter_functions(
     vault,
     strategy,
     accounts,
-    cUsdc,
+    compCurrency,
 ):
     # Check original values
     plugin = GenericCompound.at(strategy.lenders(0))
@@ -84,7 +83,9 @@ def test_setter_functions(
     assert plugin.minCompToSell() == minCompToSell
     assert plugin.minCompToClaim() == minCompToClaim
 
-    tx = plugin.cloneCompoundLender(strategy, "CloneGC", cUsdc, {"from": strategist})
+    tx = plugin.cloneCompoundLender(
+        strategy, "CloneGC", compCurrency, {"from": strategist}
+    )
     clone = GenericCompound.at(tx.return_value)
 
     assert clone.keep3r() == ZERO_ADDRESS

@@ -6,7 +6,6 @@ import brownie
 
 
 def test_good_migration(
-    usdc,
     Strategy,
     chain,
     whale,
@@ -15,11 +14,10 @@ def test_good_migration(
     rando,
     vault,
     strategy,
+    currency,
 ):
-    currency = usdc
-
-    usdc.approve(vault, 2**256 - 1, {"from": whale})
-    usdc.approve(vault, 2**256 - 1, {"from": strategist})
+    currency.approve(vault, 2**256 - 1, {"from": whale})
+    currency.approve(vault, 2**256 - 1, {"from": strategist})
 
     deposit_limit = 1_000_000_000 * 1e6
     debt_ratio = 10_000
@@ -64,8 +62,6 @@ def test_good_migration(
 
 
 def test_normal_activity(
-    usdc,
-    cUsdc,
     chain,
     whale,
     gov,
@@ -73,13 +69,13 @@ def test_normal_activity(
     rando,
     vault,
     strategy,
+    currency,
 ):
-    starting_balance = usdc.balanceOf(strategist)
-    currency = usdc
+    starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
 
-    usdc.approve(vault, 2**256 - 1, {"from": whale})
-    usdc.approve(vault, 2**256 - 1, {"from": strategist})
+    currency.approve(vault, 2**256 - 1, {"from": whale})
+    currency.approve(vault, 2**256 - 1, {"from": strategist})
 
     deposit_limit = 1_000_000_000 * (10 ** (decimals))
     debt_ratio = 10_000
@@ -177,7 +173,6 @@ def test_normal_activity(
 
 
 def test_debt_increase(
-    usdc,
     chain,
     whale,
     gov,
@@ -185,10 +180,9 @@ def test_debt_increase(
     rando,
     vault,
     strategy,
+    currency,
 ):
-
-    currency = usdc
-    usdc.approve(vault, 2**256 - 1, {"from": whale})
+    currency.approve(vault, 2**256 - 1, {"from": whale})
 
     deposit_limit = 100_000_000 * 1e6
     debt_ratio = 10_000
@@ -245,7 +239,6 @@ def test_vault_shares(
     strategy,
     chain,
     vault,
-    cUsdc,
     currency,
     rewards,
     gov,
@@ -270,7 +263,7 @@ def test_vault_shares(
     gov_share = vault.balanceOf(strategist)
 
     assert gov_share == whale_share
-    assert vault.pricePerShare() == (10**decimals)
+    assert vault.pricePerShare() == 10**decimals
     assert vault.pricePerShare() * whale_share / (10**decimals) == amount1
 
     assert (
@@ -349,7 +342,6 @@ def test_apr(
     strategy,
     chain,
     vault,
-    cUsdc,
     currency,
     gov,
     interface,
@@ -363,12 +355,12 @@ def test_apr(
     vault.addStrategy(strategy, debt_ratio, 0, 2**256 - 1, 500, {"from": gov})
     vault.setDepositLimit(deposit_limit, {"from": gov})
     gov = strategist
-    amount1 = 50 * (10**decimals)
+
     currency.approve(vault, 2**256 - 1, {"from": whale})
     currency.approve(vault, 2**256 - 1, {"from": gov})
 
+    amount1 = 50 * (10**decimals)
     amount2 = 50_000 * (10**decimals)
-
     vault.deposit(amount1, {"from": gov})
     vault.deposit(amount2, {"from": whale})
 
@@ -396,7 +388,7 @@ def test_apr(
         # genericStateOfStrat(strategy, currency, vault)
         # genericStateOfVault(vault, currency)
 
-        profit = (vault.totalAssets() - startingBalance) / 10**currency.decimals()
+        profit = (vault.totalAssets() - startingBalance) / 10 ** currency.decimals()
         strState = vault.strategies(strategy)
         totalGains = strState[7]  # get strategy reported total gains
 

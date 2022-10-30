@@ -7,7 +7,6 @@ import brownie
 
 def test_clone(
     chain,
-    usdc,
     whale,
     gov,
     strategist,
@@ -16,7 +15,8 @@ def test_clone(
     Strategy,
     strategy,
     GenericCompound,
-    cUsdc,
+    currency,
+    compCurrency,
 ):
     # Clone magic
     tx = strategy.clone(vault)
@@ -32,23 +32,23 @@ def test_clone(
 
     # Clone the Comp lender
     original_comp = GenericCompound.at(strategy.lenders(strategy.numLenders() - 1))
+    cloned_name = "Cloned_Comp_" + currency.symbol()
     tx = original_comp.cloneCompoundLender(
-        cloned_strategy, "ClonedCompUSDC", cUsdc, {"from": gov}
+        cloned_strategy, cloned_name, compCurrency, {"from": gov}
     )
     cloned_lender = GenericCompound.at(tx.return_value)
-    assert cloned_lender.lenderName() == "ClonedCompUSDC"
+    assert cloned_lender.lenderName() == cloned_name
 
     cloned_strategy.addLender(cloned_lender, {"from": gov})
 
     with brownie.reverts():
-        cloned_lender.initialize(cUsdc, {"from": gov})
+        cloned_lender.initialize(compCurrency, {"from": gov})
 
-    starting_balance = usdc.balanceOf(strategist)
-    currency = usdc
+    starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
 
-    usdc.approve(vault, 2**256 - 1, {"from": whale})
-    usdc.approve(vault, 2**256 - 1, {"from": strategist})
+    currency.approve(vault, 2**256 - 1, {"from": whale})
+    currency.approve(vault, 2**256 - 1, {"from": strategist})
 
     deposit_limit = 1_000_000_000 * (10 ** (decimals))
     debt_ratio = 10_000

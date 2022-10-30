@@ -9,7 +9,6 @@ from weiroll import WeirollPlanner, WeirollContract
 
 def test_rewards(
     chain,
-    usdc,
     whale,
     gov,
     strategist,
@@ -19,15 +18,15 @@ def test_rewards(
     strategy,
     interface,
     GenericCompound,
+    currency,
 ):
 
-    starting_balance = usdc.balanceOf(strategist)
-    currency = usdc
+    starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
     plugin = GenericCompound.at(strategy.lenders(0))
 
-    usdc.approve(vault, 2**256 - 1, {"from": whale})
-    usdc.approve(vault, 2**256 - 1, {"from": strategist})
+    currency.approve(vault, 2**256 - 1, {"from": whale})
+    currency.approve(vault, 2**256 - 1, {"from": strategist})
 
     deposit_limit = 1_000_000_000 * (10 ** (decimals))
     debt_ratio = 10_000
@@ -96,7 +95,6 @@ def test_rewards(
 
 
 def test_no_rewards(
-    usdc,
     Strategy,
     chain,
     whale,
@@ -105,14 +103,14 @@ def test_no_rewards(
     vault,
     strategy,
     GenericCompound,
+    currency,
 ):
-    starting_balance = usdc.balanceOf(strategist)
-    currency = usdc
+    starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
     plugin = GenericCompound.at(strategy.lenders(0))
 
-    usdc.approve(vault, 2**256 - 1, {"from": whale})
-    usdc.approve(vault, 2**256 - 1, {"from": strategist})
+    currency.approve(vault, 2**256 - 1, {"from": whale})
+    currency.approve(vault, 2**256 - 1, {"from": strategist})
 
     deposit_limit = 1_000_000_000 * (10 ** (decimals))
     debt_ratio = 10_000
@@ -160,7 +158,6 @@ def test_no_rewards(
 
 def test_trade_factory(
     chain,
-    usdc,
     whale,
     gov,
     strategist,
@@ -171,15 +168,15 @@ def test_trade_factory(
     GenericCompound,
     trade_factory,
     weth,
+    currency,
 ):
 
-    starting_balance = usdc.balanceOf(strategist)
-    currency = usdc
+    starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
     plugin = GenericCompound.at(strategy.lenders(0))
 
-    usdc.approve(vault, 2**256 - 1, {"from": whale})
-    usdc.approve(vault, 2**256 - 1, {"from": strategist})
+    currency.approve(vault, 2**256 - 1, {"from": whale})
+    currency.approve(vault, 2**256 - 1, {"from": strategist})
 
     deposit_limit = 1_000_000_000 * (10 ** (decimals))
     debt_ratio = 10_000
