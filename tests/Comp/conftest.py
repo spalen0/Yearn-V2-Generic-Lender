@@ -27,19 +27,21 @@ def live_GenericCompound_usdc_1(GenericCompound):
 
 # change these fixtures for generic tests
 @pytest.fixture
-def currency(dai, usdc, weth):
-    yield usdc
+def compCurrency(cUsdc, cUsdt):
+    yield cUsdc
 
 
 @pytest.fixture
-def compCurrency(cUsdc, cDai):
-    yield cUsdc
+def currency(interface, compCurrency, weth):
+    yield interface.ERC20(compCurrency.underlying())
 
 
 @pytest.fixture
 def whale(accounts, web3, weth):
     # big binance7 wallet
     # acc = accounts.at('0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8', force=True)
+    # Maker
+    # acc = accounts.at("0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599", force=True)
     # balancer vault
     acc = accounts.at("0xBA12222222228d8Ba445958a75a0704d566BF2C8", force=True)
 
@@ -93,28 +95,37 @@ def trade_factory():
 
 # specific token addresses
 @pytest.fixture
-def usdc(interface):
-    yield interface.ERC20("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
-
-
-@pytest.fixture
-def dai(interface):
-    yield interface.ERC20("0x6b175474e89094c44da98b954eedeac495271d0f")
-
-
-@pytest.fixture
 def weth(interface):
     yield interface.IWETH("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2")
 
 
 @pytest.fixture
+def cUsdc(interface):
+    yield interface.CErc20I("0x39AA39c021dfbaE8faC545936693aC917d5E7563")
+
+
+@pytest.fixture
+def cUsdt(interface):
+    yield interface.CErc20I("0xf650C3d88D12dB855b8bf7D11Be6C55A4e07dCC9")
+
+
+# not working, fails on: Comptroller.redeemVerify
+@pytest.fixture
 def cDai(interface):
     yield interface.CErc20I("0x5d3a536e4d6dbd6114cc1ead35777bab948e3643")
 
 
+# tests won't work for CEtherI, because it's not a cERC20 token
+# see require in GenericCompound _initialize
 @pytest.fixture
-def cUsdc(interface):
-    yield interface.CErc20I("0x39AA39c021dfbaE8faC545936693aC917d5E7563")
+def cEth(interface):
+    yield interface.CEtherI("0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5")
+
+
+# Problem with interest rate model, fails in contract apr function, model.getSupplyRate
+@pytest.fixture
+def cWbtc(interface):
+    yield interface.CErc20I("0xC11b1268C1A384e55C48c2391d8d480264A3A7F4")
 
 
 @pytest.fixture(scope="module", autouse=True)
