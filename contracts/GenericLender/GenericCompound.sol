@@ -98,6 +98,10 @@ contract GenericCompound is GenericLenderBase {
         return want.balanceOf(address(this)).add(underlyingBalanceStored());
     }
 
+    /**
+     * @notice Returns the value deposited in Compound protocol
+     * @return balance in want token value
+     */
     function underlyingBalanceStored() public view returns (uint256 balance) {
         uint256 currentCr = cToken.balanceOf(address(this));
         if (currentCr == 0) {
@@ -114,7 +118,6 @@ contract GenericCompound is GenericLenderBase {
 
     // scaled by 1e18
     function _apr() internal view returns (uint256) {
-        // TODO: apr calculation is relying on usd stablecoin
         uint256 baseApr = cToken.supplyRatePerBlock().mul(BLOCKS_PER_YEAR);
         uint256 rewardsApr = getRewardAprForSupplyBase(0);
         return baseApr.add(rewardsApr);
@@ -172,27 +175,28 @@ contract GenericCompound is GenericLenderBase {
     }
 
     /**
-     * @notice emergency withdraw. sends balance plus amount to governance
+     * @notice Withdraws the specified amount from Compound along with all free want tokens.
+     * @param amount to withdraw from Compound, defined in want token value
      */
     function emergencyWithdraw(uint256 amount)
         external
         override
         onlyGovernance
     {
-        //dont care about errors here. we want to exit what we can
+        // dont care about errors here. we want to exit what we can
         cToken.redeemUnderlying(amount);
 
         want.safeTransfer(vault.governance(), want.balanceOf(address(this)));
     }
 
-    //withdraw an amount including any want balance
     function _withdraw(uint256 amount) internal returns (uint256) {
+        // underlying balance is in want token, no need for additional conversion
         uint256 balanceUnderlying = cToken.balanceOfUnderlying(address(this));
         uint256 looseBalance = want.balanceOf(address(this));
         uint256 total = balanceUnderlying.add(looseBalance);
 
         if (amount > total) {
-            //cant withdraw more than we own
+            // cant withdraw more than we own
             amount = total;
         }
 
@@ -205,13 +209,13 @@ contract GenericCompound is GenericLenderBase {
         uint256 liquidity = want.balanceOf(address(cToken));
         uint256 toWithdraw = amount.sub(looseBalance);
         if (toWithdraw <= liquidity) {
-            //we can take all
+            // we can take all
             require(
                 cToken.redeemUnderlying(toWithdraw) == 0,
                 "ctoken: redeemUnderlying fail"
             );
         } else {
-            //take all we can
+            // take all we can
             require(
                 cToken.redeemUnderlying(liquidity) == 0,
                 "ctoken: redeemUnderlying fail"

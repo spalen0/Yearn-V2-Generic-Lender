@@ -215,14 +215,15 @@ def test_trade_factory(
     chain.sleep(1)
     strategy.harvest({"from": strategist})
 
-    # send come comp to the strategy
+    # send some comp to the strategy
     comp = interface.ERC20(plugin.comp())
     toSend = 10 * (10**18)
     comp.transfer(plugin.address, toSend, {"from": whale})
     assert comp.balanceOf(plugin.address) == toSend
     assert plugin.harvestTrigger(10) == True
 
-    before_bal = plugin.underlyingBalanceStored()
+    navBefore = plugin.nav()
+    currencyBefore = currency.balanceOf(plugin)
 
     with reverts():
         plugin.setTradeFactory(trade_factory.address, {"from": rando})
@@ -235,7 +236,7 @@ def test_trade_factory(
 
     plugin.harvest({"from": gov})
 
-    # nothing should have been sold because ySwap is set
+    # nothing should have been sold because ySwap is set and not yet executed
     assert comp.balanceOf(plugin.address) == toSend
     token_in = comp
     token_out = currency
@@ -282,6 +283,10 @@ def test_trade_factory(
 
     assert afterBal > 0
     assert comp.balanceOf(plugin.address) == 0
+
+    # must have more want tokens after the ySwap is executed
+    assert plugin.nav() > navBefore
+    assert currency.balanceOf(plugin) > currencyBefore
 
     plugin.removeTradeFactoryPermissions({"from": strategist})
     assert plugin.tradeFactory() == ZERO_ADDRESS
