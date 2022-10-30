@@ -41,8 +41,8 @@ contract GenericCompound is GenericLenderBase {
         UniswapAnchoredViewI(0x65c816077C29b557BEE980ae3cC2dCE80204A0C5);
 
     address public tradeFactory;
-    uint256 public minCompToSell = 1 ether;
-    uint256 public minCompToClaim = 1 ether;
+    uint256 public minCompToSell;
+    uint256 public minCompToClaim;
     address public keep3r;
 
     CErc20I public cToken;
@@ -79,6 +79,8 @@ contract GenericCompound is GenericLenderBase {
         require(cToken.underlying() == address(want), "WRONG CTOKEN");
         want.safeApprove(_cToken, uint256(-1));
         IERC20(comp).safeApprove(address(uniswapRouter), type(uint256).max);
+        minCompToClaim = 1 ether;
+        minCompToSell = 1 ether;
     }
 
     function cloneCompoundLender(

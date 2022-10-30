@@ -88,9 +88,8 @@ def test_setter_functions(
     clone = GenericCompound.at(tx.return_value)
 
     assert clone.keep3r() == ZERO_ADDRESS
-    # TODO: check these values
-    # assert clone.minCompToSell() == 1 * (10**18)
-    # assert clone.minCompToClaim() == 1 * (10**18)
+    assert clone.minCompToSell() == 1 * (10**18)
+    assert clone.minCompToClaim() == 1 * (10**18)
 
     with brownie.reverts():
         clone.setKeep3r(accounts[1], {"from": rando})

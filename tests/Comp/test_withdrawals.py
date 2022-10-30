@@ -24,33 +24,29 @@ def test_withdrawals_work(
     usdc.approve(vault, 2**256 - 1, {"from": whale})
     usdc.approve(vault, 2**256 - 1, {"from": strategist})
 
-    deposit_limit = 1_000_000_000 * (10 ** (decimals))
+    deposit_limit = 1_000_000_000 * 10**decimals
     debt_ratio = 10000
     vault.addStrategy(strategy, debt_ratio, 0, 2**256 - 1, 500, {"from": gov})
     vault.setDepositLimit(deposit_limit, {"from": gov})
 
     status = strategy.lendStatuses()
-    depositAmount = 501 * (10 ** (decimals))
+    depositAmount = 501 * 10**decimals
     vault.deposit(depositAmount, {"from": strategist})
 
     # whale deposits as well
-    whale_deposit = 100_000 * (10 ** (decimals))
+    whale_deposit = 100_000 * 10**decimals
     vault.deposit(whale_deposit, {"from": whale})
 
     chain.sleep(1)
     strategy.harvest({"from": strategist})
 
     sleep(chain, 25)
-
     strategy.harvest({"from": strategist})
 
     # TODO: remove all lenders -> to withdraw all amounts
     for j in status:
         plugin = interface.IGeneric(j[3])
         strategy.safeRemoveLender(plugin)
-
-        # TODO: not used
-        status2 = strategy.lendStatuses()
 
     assert currency.balanceOf(strategy) > (depositAmount + whale_deposit) * 0.999
 
@@ -59,7 +55,7 @@ def test_withdrawals_work(
 
     for j in status:
         plugin = interface.IGeneric(j[3])
-        print("Testing ", j[0])
+        # print("Testing ", j[0])
         strategy.addLender(j[3], {"from": gov})
         chain.sleep(1)
         strategy.harvest({"from": strategist})
@@ -69,8 +65,7 @@ def test_withdrawals_work(
         shareprice = vault.pricePerShare()
 
         shares = vault.balanceOf(strategist)
-        # TODO: I don't understand the value expectedout? Why multiply decimals by 2?
-        expectedout = shares * (shareprice / 1e18) * (10 ** (decimals * 2))
+        expectedout = shares * shareprice / 10**decimals
         balanceBefore = currency.balanceOf(strategist)
         # print(f"Lender: {j[0]}, Deposits: {formS.format(plugin.nav()/1e6)}")
 
@@ -84,7 +79,7 @@ def test_withdrawals_work(
         shareprice = vault.pricePerShare()
 
         shares = vault.balanceOf(whale)
-        expectedout = shares * (shareprice / 1e18) * (10 ** (decimals * 2))
+        expectedout = shares * shareprice / 10**decimals
         balanceBefore = currency.balanceOf(whale)
         vault.withdraw(vault.balanceOf(whale), {"from": whale})
         balanceAfter = currency.balanceOf(whale)
@@ -98,14 +93,14 @@ def test_withdrawals_work(
         chain.sleep(1)
         strategy.harvest({"from": strategist})
         strategy.safeRemoveLender(j[3])
-        # TODO: why value 1000000?
-        assert plugin.nav() < 1000000
+        # verify plugin is empty or just have some dust
+        assert plugin.nav() < 1000
         assert currency.balanceOf(strategy) > (depositAmount + whale_deposit) * 0.999
 
     shareprice = vault.pricePerShare()
 
     shares = vault.balanceOf(strategist)
-    expectedout = shares * (shareprice / 1e18) * (10 ** (decimals * 2))
+    expectedout = shares * shareprice / 10**decimals
     balanceBefore = currency.balanceOf(strategist)
 
     # genericStateOfStrat(strategy, currency, vault)
@@ -116,16 +111,15 @@ def test_withdrawals_work(
 
     # genericStateOfStrat(strategy, currency, vault)
     # genericStateOfVault(vault, currency)
-    status = strategy.lendStatuses()
 
     chain.mine(1)
     withdrawn = balanceAfter - balanceBefore
     assert withdrawn > expectedout * 0.99 and withdrawn < expectedout * 1.01
 
     shareprice = vault.pricePerShare()
-
     shares = vault.balanceOf(whale)
-    expectedout = shares * (shareprice / 1e18) * (10 ** (decimals * 2))
+    expectedout = shares * shareprice / 10**decimals
+
     balanceBefore = currency.balanceOf(whale)
     vault.withdraw(vault.balanceOf(whale), {"from": whale})
     balanceAfter = currency.balanceOf(whale)

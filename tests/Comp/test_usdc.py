@@ -114,7 +114,6 @@ def test_normal_activity(
 
     for i in range(15):
         waitBlock = random.randint(10, 50)
-        # cUsdc.accrueAccount(strategy.lenders(0), {"from": strategy.lenders(0)})
         chain.sleep(15 * 30)
         chain.mine(waitBlock)
 
@@ -169,8 +168,6 @@ def test_normal_activity(
     # genericStateOfVault(vault, currency)
     status = strategy.lendStatuses()
 
-    # TODO: looks like this mine is not needed because there no blockchain calls after
-    chain.mine(waitBlock)
     withdrawn = balanceAfter - balanceBefore
     assert withdrawn > expectedout * 0.99 and withdrawn < expectedout * 1.01
 
@@ -261,7 +258,7 @@ def test_vault_shares(
     vault.addStrategy(strategy, debt_ratio, 0, 2**256 - 1, 500, {"from": gov})
     vault.setDepositLimit(deposit_limit, {"from": gov})
     decimals = currency.decimals()
-    amount1 = 100_000 * (10**decimals)
+    amount1 = 100_000 * 10**decimals
 
     currency.approve(vault, 2**256 - 1, {"from": whale})
     currency.approve(vault, 2**256 - 1, {"from": strategist})
@@ -288,13 +285,11 @@ def test_vault_shares(
     # no profit yet
     whale_share = vault.balanceOf(whale)
     gov_share = vault.balanceOf(strategist)
-    rew_share = vault.balanceOf(
-        strategy
-    )  # rewards accumulated in Strategy until claimed by "rewards"
+    # rewards accumulated in Strategy until claimed by "rewards"
+    rew_share = vault.balanceOf(strategy)
 
-    assert (
-        gov_share == whale_share and rew_share == 0 and whale_share == amount1
-    )  # no profit yet, same shares distribution than initially
+    # no profit yet, same shares distribution than initially
+    assert gov_share == whale_share and rew_share == 0 and whale_share == amount1
     vaultValue = (
         vault.pricePerShare() * (whale_share + rew_share + gov_share) / (10**decimals)
     )
@@ -317,7 +312,6 @@ def test_vault_shares(
     ) * vault.pricePerShare() / (
         10**decimals
     ) < amount1 * 2 * 1.001
-    # cUsdc.accrueAccount(strategy.lenders(0), {"from": strategy.lenders(0)})
     chain.sleep(1)
     strategy.harvest({"from": strategist})
 
@@ -327,12 +321,12 @@ def test_vault_shares(
     whale_share = vault.balanceOf(whale)
     gov_share = vault.balanceOf(strategist)
     rew_share = vault.balanceOf(rewards)
-    pending_rewards = vault.balanceOf(
-        strategy
-    )  # rewards pending to be claimed by rewards
+    # rewards pending to be claimed by rewards
+    pending_rewards = vault.balanceOf(strategy)
+
     # add strategy return
     assert vault.totalSupply() == whale_share + gov_share + rew_share + pending_rewards
-    value = vault.totalSupply() * vault.pricePerShare() / (10**decimals)
+    value = vault.totalSupply() * vault.pricePerShare() / 10**decimals
     assert (
         value * 0.99999 < vault.totalAssets() and value * 1.00001 > vault.totalAssets()
     )
@@ -348,7 +342,6 @@ def test_vault_shares(
         value < strategy.estimatedTotalAssets() * 1.001
         and value > strategy.estimatedTotalAssets() * 0.999
     )
-
     assert gov_share == whale_share  # they deposited the same at the same moment
 
 
@@ -380,31 +373,32 @@ def test_apr(
     vault.deposit(amount2, {"from": whale})
 
     chain.sleep(1)
-    strategy.harvest({"from": gov})  # invest deposited assets
+    strategy.harvest({"from": gov})
+
+    # set lowest value to collect and sell comp rewards
+    plugin = GenericCompound.at(strategy.lenders(0))
+    plugin.setRewardStuff(1, 1, {"from": gov})
+
+    chain.sleep(1)
+    strategy.harvest({"from": gov})
 
     startingBalance = vault.totalAssets()
-
-    plugin = GenericCompound.at(strategy.lenders(0))
-    # set min value to collect rewards to lowest
-    plugin.setRewardStuff(1, 1, {"from": gov})
 
     for i in range(10):
         waitBlock = 25
         # print(f'\n----wait {waitBlock} blocks----')
         chain.mine(waitBlock)
         chain.sleep(waitBlock * 13)
-        # print(f'\n----harvest----')
 
-        # TODO: after second harvest it works
-        plugin.harvest({"from": strategist})
+        # print(f'\n----harvest----')
         tx = strategy.harvest({"from": strategist})
 
         # genericStateOfStrat(strategy, currency, vault)
         # genericStateOfVault(vault, currency)
 
-        profit = (vault.totalAssets() - startingBalance) / (10 ** currency.decimals())
+        profit = (vault.totalAssets() - startingBalance) / 10**currency.decimals()
         strState = vault.strategies(strategy)
-        totalGains = strState[7]  # get strategy total gains
+        totalGains = strState[7]  # get strategy reported total gains
 
         blocks_per_year = 2_252_857
         assert startingBalance != 0
@@ -412,11 +406,8 @@ def test_apr(
         assert time != 0
         apr = (totalGains / startingBalance) * (blocks_per_year / time)
 
-        if i > 1:
-            # TODO: see why the first harvest has apy = 0
-            assert apr > 0 and apr < 1
-        # print(apr)
-        print(f"implied apr: {apr:.8%}")
+        # print(f"Implied apr: {apr:.8%}")
+        assert apr > 0 and apr < 1
 
     vault.withdraw(vault.balanceOf(gov), {"from": gov})
     vault.withdraw(vault.balanceOf(whale), {"from": whale})

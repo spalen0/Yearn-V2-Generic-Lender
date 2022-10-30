@@ -39,9 +39,9 @@ def whale(accounts, web3, weth):
     acc = accounts.at("0xBA12222222228d8Ba445958a75a0704d566BF2C8", force=True)
 
     # lots of weth account
-    # wethAcc = accounts.at("0xeBec795c9c8bBD61FFc14A6662944748F299cAcf", force=True)
-    # weth.approve(acc, 2 ** 256 - 1, {"from": wethAcc})
-    # weth.transfer(acc, weth.balanceOf(wethAcc), {"from": wethAcc})
+    wethAcc = accounts.at("0xeBec795c9c8bBD61FFc14A6662944748F299cAcf", force=True)
+    weth.approve(acc, 2**256 - 1, {"from": wethAcc})
+    weth.transfer(acc, weth.balanceOf(wethAcc), {"from": wethAcc})
 
     assert weth.balanceOf(acc) > 0
     yield acc
