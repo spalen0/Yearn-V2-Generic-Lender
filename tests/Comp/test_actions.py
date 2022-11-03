@@ -16,10 +16,11 @@ def test_good_migration(
     strategy,
     currency,
 ):
+    decimals = currency.decimals()
     currency.approve(vault, 2**256 - 1, {"from": whale})
     currency.approve(vault, 2**256 - 1, {"from": strategist})
 
-    deposit_limit = 1_000_000_000 * 1e6
+    deposit_limit = 100_000_000 * (10**decimals)
     debt_ratio = 10_000
     vault.addStrategy(strategy, debt_ratio, 0, 2**256 - 1, 500, {"from": gov})
     vault.setDepositLimit(deposit_limit, {"from": gov})
@@ -126,7 +127,7 @@ def test_normal_activity(
             shares = vault.balanceOf(whale)
             print("whale has:", shares)
             sharesout = int(shares * percent / 100)
-            expectedout = sharesout * (shareprice / 1e18) * (10 ** (decimals * 2))
+            expectedout = sharesout * shareprice / (10**decimals)
 
             balanceBefore = currency.balanceOf(whale)
             vault.withdraw(sharesout, {"from": whale})
@@ -144,7 +145,7 @@ def test_normal_activity(
     shareprice = vault.pricePerShare()
 
     shares = vault.balanceOf(strategist)
-    expectedout = shares * (shareprice / 1e18) * (10 ** (decimals * 2))
+    expectedout = shares * shareprice / (10**decimals)
     balanceBefore = currency.balanceOf(strategist)
 
     # genericStateOfStrat(strategy, currency, vault)
@@ -182,9 +183,10 @@ def test_debt_increase(
     strategy,
     currency,
 ):
+    decimals = currency.decimals()
     currency.approve(vault, 2**256 - 1, {"from": whale})
 
-    deposit_limit = 100_000_000 * 1e6
+    deposit_limit = 100_000_000 * (10**decimals)
     debt_ratio = 10_000
     vault.addStrategy(strategy, debt_ratio, 0, 2**256 - 1, 500, {"from": gov})
     vault.setDepositLimit(deposit_limit, {"from": gov})
@@ -246,7 +248,8 @@ def test_vault_shares(
     whale,
     strategist,
 ):
-    deposit_limit = 100_000_000 * 1e6
+    decimals = currency.decimals()
+    deposit_limit = 100_000_000 * (10**decimals)
     debt_ratio = 10_000
     vault.addStrategy(strategy, debt_ratio, 0, 2**256 - 1, 500, {"from": gov})
     vault.setDepositLimit(deposit_limit, {"from": gov})
@@ -264,13 +267,11 @@ def test_vault_shares(
 
     assert gov_share == whale_share
     assert vault.pricePerShare() == 10**decimals
-    assert vault.pricePerShare() * whale_share / (10**decimals) == amount1
+    assert vault.pricePerShare() * whale_share / 10**decimals - amount1 == 0
 
     assert (
-        vault.pricePerShare() * whale_share / (10**decimals)
-        == vault.totalAssets() / 2
+        vault.pricePerShare() * whale_share / 10**decimals == vault.totalAssets() / 2
     )
-    assert gov_share == whale_share  # duplicated?
 
     chain.sleep(1)
     strategy.harvest({"from": strategist})
@@ -284,7 +285,7 @@ def test_vault_shares(
     # no profit yet, same shares distribution than initially
     assert gov_share == whale_share and rew_share == 0 and whale_share == amount1
     vaultValue = (
-        vault.pricePerShare() * (whale_share + rew_share + gov_share) / (10**decimals)
+        vault.pricePerShare() * (whale_share + rew_share + gov_share) / 10**decimals
     )
     assert (
         vaultValue > vault.totalAssets() * 0.999
@@ -350,7 +351,7 @@ def test_apr(
     GenericCompound,
 ):
     decimals = currency.decimals()
-    deposit_limit = 100_000_000 * 1e6
+    deposit_limit = 100_000_000 * (10**decimals)
     debt_ratio = 10_000
     vault.addStrategy(strategy, debt_ratio, 0, 2**256 - 1, 500, {"from": gov})
     vault.setDepositLimit(deposit_limit, {"from": gov})
@@ -359,8 +360,8 @@ def test_apr(
     currency.approve(vault, 2**256 - 1, {"from": whale})
     currency.approve(vault, 2**256 - 1, {"from": gov})
 
-    amount1 = 50 * (10**decimals)
-    amount2 = 50_000 * (10**decimals)
+    amount1 = 100_000 * (10**decimals)
+    amount2 = 500_000 * (10**decimals)
     vault.deposit(amount1, {"from": gov})
     vault.deposit(amount2, {"from": whale})
 
@@ -378,15 +379,15 @@ def test_apr(
 
     for i in range(10):
         waitBlock = 25
-        # print(f'\n----wait {waitBlock} blocks----')
+        print(f"\n----wait {waitBlock} blocks----")
         chain.mine(waitBlock)
         chain.sleep(waitBlock * 13)
 
-        # print(f'\n----harvest----')
+        print(f"\n----harvest----")
         tx = strategy.harvest({"from": strategist})
 
-        # genericStateOfStrat(strategy, currency, vault)
-        # genericStateOfVault(vault, currency)
+        genericStateOfStrat(strategy, currency, vault)
+        genericStateOfVault(vault, currency)
 
         profit = (vault.totalAssets() - startingBalance) / 10 ** currency.decimals()
         strState = vault.strategies(strategy)

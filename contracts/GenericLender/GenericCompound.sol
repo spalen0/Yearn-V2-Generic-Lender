@@ -159,7 +159,7 @@ contract GenericCompound is GenericLenderBase {
             .div(wantTotalSupply.mul(wantPriceInUsd));
 
         if (vault.decimals() < 18) {
-            // scale value to 1e18
+            // scale value to 1e18, see wantPriceInUsd scaling above
             supplyBaseRewardApr = supplyBaseRewardApr.div(
                 10**(18 - vault.decimals())
             );
@@ -207,24 +207,27 @@ contract GenericCompound is GenericLenderBase {
             return amount;
         }
 
-        // withdraw all available liqudity from compound
-        uint256 liquidity = want.balanceOf(address(cToken));
         uint256 toWithdraw = amount.sub(looseBalance);
-        if (toWithdraw <= liquidity) {
-            // we can take all
-            require(
-                cToken.redeemUnderlying(toWithdraw) == 0,
-                "ctoken: redeemUnderlying fail"
-            );
-        } else {
-            // take all we can
-            require(
-                cToken.redeemUnderlying(liquidity) == 0,
-                "ctoken: redeemUnderlying fail"
-            );
+        if (toWithdraw > dust) {
+            // withdraw all available liqudity from compound
+            uint256 liquidity = want.balanceOf(address(cToken));
+            if (toWithdraw <= liquidity) {
+                // we can take all
+                require(
+                    cToken.redeemUnderlying(toWithdraw) == 0,
+                    "ctoken: redeemUnderlying fail"
+                );
+            } else {
+                // take all we can
+                require(
+                    cToken.redeemUnderlying(liquidity) == 0,
+                    "ctoken: redeemUnderlying fail"
+                );
+            }
+            // new balance is loosed from compound
+            looseBalance = want.balanceOf(address(this));
         }
 
-        looseBalance = want.balanceOf(address(this));
         want.safeTransfer(address(strategy), looseBalance);
         return looseBalance;
     }
@@ -233,6 +236,7 @@ contract GenericCompound is GenericLenderBase {
         uint256 compBalance = IERC20(comp).balanceOf(address(this));
 
         if (compBalance > minCompToSell) {
+            // TODO: add for want = eth
             address[] memory path = new address[](3);
             path[0] = comp;
             path[1] = weth;
@@ -317,8 +321,8 @@ contract GenericCompound is GenericLenderBase {
 
     function hasAssets() external view override returns (bool) {
         return
-            cToken.balanceOf(address(this)) > 0 ||
-            want.balanceOf(address(this)) > 0;
+            cToken.balanceOf(address(this)) > dust ||
+            want.balanceOf(address(this)) > dust;
     }
 
     /**

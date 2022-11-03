@@ -17,6 +17,7 @@ def test_clone(
     GenericCompound,
     currency,
     compCurrency,
+    dust,
 ):
     # Clone magic
     tx = strategy.clone(vault)
@@ -44,6 +45,9 @@ def test_clone(
     with brownie.reverts():
         cloned_lender.initialize(compCurrency, {"from": gov})
 
+    cloned_lender.setDust(dust, {"from": gov})
+    assert cloned_lender.dust() == dust
+
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
 
@@ -64,7 +68,7 @@ def test_clone(
     chain.mine(1)
     assert cloned_strategy.harvestTrigger(1) == True
 
-    cloned_strategy.harvest({"from": strategist})
+    tx = cloned_strategy.harvest({"from": strategist})
 
     assert (
         cloned_strategy.estimatedTotalAssets() >= depositAmount * 0.999999
@@ -75,9 +79,10 @@ def test_clone(
     # whale deposits as well
     whale_deposit = 100_000 * (10 ** (decimals))
     vault.deposit(whale_deposit, {"from": whale})
+    chain.mine(1)
     assert cloned_strategy.harvestTrigger(1000) == True
 
-    cloned_strategy.harvest({"from": strategist})
+    tx2 = cloned_strategy.harvest({"from": strategist})
 
     for i in range(15):
         waitBlock = random.randint(10, 50)

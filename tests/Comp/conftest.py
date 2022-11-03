@@ -27,7 +27,7 @@ def live_GenericCompound_usdc_1(GenericCompound):
 
 # change these fixtures for generic tests
 @pytest.fixture
-def compCurrency(cUsdc, cUsdt):
+def compCurrency(cUsdc, cUsdt, cDai):
     yield cUsdc
 
 
@@ -142,6 +142,29 @@ def vault(gov, rewards, guardian, currency, pm):
     yield vault
 
 
+token_prices = {
+    "WBTC": 35_000,
+    "WETH": 2_000,
+    "USDT": 1,
+    "USDC": 1,
+    "DAI": 1,
+}
+
+dust_values = {
+    "WBTC": 1e2,
+    "ETH": 1e13,
+    "USDT": 1e3,
+    "USDC": 1e3,
+    "DAI": 1e9,
+}
+
+
+@pytest.fixture
+def dust(currency):
+    # dust = 10 ** currency.decimals() / (c_token_prices[compCurrency.symbol()] * 5)
+    yield dust_values[currency.symbol()]
+
+
 @pytest.fixture
 def strategy(
     strategist,
@@ -153,6 +176,7 @@ def strategy(
     GenericCompound,
     currency,
     compCurrency,
+    dust,
 ):
     strategy = strategist.deploy(Strategy, vault)
     strategy.setKeeper(keeper, {"from": gov})
@@ -166,5 +190,7 @@ def strategy(
 
     strategy.addLender(compoundPlugin, {"from": gov})
     assert strategy.numLenders() == 1
+
+    compoundPlugin.setDust(dust)
 
     yield strategy
