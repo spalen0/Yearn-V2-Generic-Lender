@@ -224,7 +224,7 @@ contract GenericCompound is GenericLenderBase {
                     "ctoken: redeemUnderlying fail"
                 );
             }
-            // new balance is loosed from compound
+            // calculate withdrawan balance to new loose balance
             looseBalance = want.balanceOf(address(this));
         }
 
@@ -236,7 +236,6 @@ contract GenericCompound is GenericLenderBase {
         uint256 compBalance = IERC20(comp).balanceOf(address(this));
 
         if (compBalance > minCompToSell) {
-            // TODO: add for want = eth
             address[] memory path = new address[](3);
             path[0] = comp;
             path[1] = weth;

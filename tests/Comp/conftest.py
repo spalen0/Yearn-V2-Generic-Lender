@@ -143,12 +143,18 @@ def vault(gov, rewards, guardian, currency, pm):
 
 
 token_prices = {
-    "WBTC": 35_000,
-    "WETH": 2_000,
+    "WBTC": 30_000,
+    "WETH": 1_500,
     "USDT": 1,
     "USDC": 1,
     "DAI": 1,
 }
+
+
+@pytest.fixture
+def valueOfCurrencyInDollars(currency):
+    yield token_prices[currency.symbol()]
+
 
 dust_values = {
     "WBTC": 1e2,

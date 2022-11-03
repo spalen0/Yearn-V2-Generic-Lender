@@ -17,6 +17,7 @@ def test_withdrawals_work(
     strategy,
     currency,
     dust,
+    valueOfCurrencyInDollars,
 ):
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
@@ -30,11 +31,11 @@ def test_withdrawals_work(
     vault.setDepositLimit(deposit_limit, {"from": gov})
 
     status = strategy.lendStatuses()
-    depositAmount = 501 * 10**decimals
+    depositAmount = 50_100 * 10**decimals
     vault.deposit(depositAmount, {"from": strategist})
 
     # whale deposits as well
-    whale_deposit = 100_000 * 10**decimals
+    whale_deposit = 200_000 * 10**decimals
     vault.deposit(whale_deposit, {"from": whale})
 
     chain.sleep(1)
@@ -94,8 +95,8 @@ def test_withdrawals_work(
         strategy.harvest({"from": strategist})
         strategy.safeRemoveLender(j[3])
 
-        # verify plugin is empty or just have some dust
-        assert plugin.nav() < dust
+        # verify plugin is empty or just have less than a penny
+        assert plugin.nav() < (valueOfCurrencyInDollars / 100) * 10**decimals
         assert currency.balanceOf(strategy) > (depositAmount + whale_deposit) * 0.999
 
     shareprice = vault.pricePerShare()
