@@ -25,33 +25,76 @@ def live_GenericCompound_usdc_1(GenericCompound):
     yield GenericCompound.at("0x33D4c129586562adfd993ebb54E830481F31ef37")
 
 
-# change these fixtures for generic tests
-@pytest.fixture
-def compCurrency(cUsdc, cUsdt, cDai):
-    yield cUsdc
+token_addresses = {
+    "USDT": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+    "DAI": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+    "USDC": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    "LINK": "0x514910771AF9Ca656af840dff83E8264EcF986CA",
+    "UNI": "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984",
+    "AAVE": "0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9",
+    "TUSD": "0x0000000000085d4780B73119b644AE5ecd22b376",
+}
+
+
+# TODO: uncomment those tokens you want to test as want
+@pytest.fixture(
+    params=[
+        "USDC",
+        "USDT",
+        "DAI",
+        "LINK",
+        "UNI",
+        "AAVE",
+        "TUSD",
+    ],
+    scope="session",
+    autouse=True,
+)
+def token(request):
+    yield Contract(token_addresses[request.param])
 
 
 @pytest.fixture
-def currency(interface, compCurrency, weth):
-    yield interface.ERC20(compCurrency.underlying())
+def currency(token):
+    yield token
+
+
+c_token_addresses = {
+    "USDC": "0x39AA39c021dfbaE8faC545936693aC917d5E7563",
+    "USDT": "0xf650C3d88D12dB855b8bf7D11Be6C55A4e07dCC9",
+    "DAI": "0x5d3a536e4d6dbd6114cc1ead35777bab948e3643",
+    "LINK": "0xFAce851a4921ce59e912d19329929CE6da6EB0c7",
+    "UNI": "0x35A18000230DA775CAc24873d00Ff85BccdeD550",
+    "AAVE": "0xe65cdB6479BaC1e22340E4E755fAE7E509EcD06c",
+    "TUSD": "0x12392F67bdf24faE0AF363c24aC620a2f67DAd86",
+}
 
 
 @pytest.fixture
-def whale(accounts, web3, weth):
-    # big binance7 wallet
-    # acc = accounts.at('0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8', force=True)
-    # Maker
-    # acc = accounts.at("0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599", force=True)
-    # balancer vault
-    acc = accounts.at("0xBA12222222228d8Ba445958a75a0704d566BF2C8", force=True)
+def compCurrency(interface, token):
+    yield interface.CErc20I(c_token_addresses[token.symbol()])
 
-    # lots of weth account
-    wethAcc = accounts.at("0xeBec795c9c8bBD61FFc14A6662944748F299cAcf", force=True)
-    weth.approve(acc, 2**256 - 1, {"from": wethAcc})
-    weth.transfer(acc, weth.balanceOf(wethAcc), {"from": wethAcc})
 
-    assert weth.balanceOf(acc) > 0
+whale_addresses = {
+    "USDT": "0x47ac0Fb4F2D84898e4D9E7b4DaB3C24507a6D503",
+    "DAI": "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7",
+    "USDC": "0x0a59649758aa4d66e25f08dd01271e891fe52199",
+    "LINK": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "UNI": "0x4b4e140d1f131fdad6fb59c13af796fd194e4135",
+    "AAVE": "0x4da27a545c0c5b758a6ba100e3a049001de870f5",
+    "TUSD": "0xf977814e90da44bfa03b6295a0616a897441acec",
+}
+
+
+@pytest.fixture
+def whale(accounts, token):
+    acc = accounts.at(whale_addresses[token.symbol()], force=True)
     yield acc
+
+
+@pytest.fixture
+def comp_whale(accounts):
+    yield accounts.at("0x5608169973d639649196a84ee4085a708bcbf397", force=True)
 
 
 @pytest.fixture()
@@ -99,35 +142,6 @@ def weth(interface):
     yield interface.IWETH("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2")
 
 
-@pytest.fixture
-def cUsdc(interface):
-    yield interface.CErc20I("0x39AA39c021dfbaE8faC545936693aC917d5E7563")
-
-
-@pytest.fixture
-def cUsdt(interface):
-    yield interface.CErc20I("0xf650C3d88D12dB855b8bf7D11Be6C55A4e07dCC9")
-
-
-# not working, fails on: Comptroller.redeemVerify
-@pytest.fixture
-def cDai(interface):
-    yield interface.CErc20I("0x5d3a536e4d6dbd6114cc1ead35777bab948e3643")
-
-
-# tests won't work for CEtherI, because it's not a cERC20 token
-# see require in GenericCompound _initialize
-@pytest.fixture
-def cEth(interface):
-    yield interface.CEtherI("0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5")
-
-
-# Problem with interest rate model, fails in contract apr function, model.getSupplyRate
-@pytest.fixture
-def cWbtc(interface):
-    yield interface.CErc20I("0xC11b1268C1A384e55C48c2391d8d480264A3A7F4")
-
-
 @pytest.fixture(scope="module", autouse=True)
 def shared_setup(module_isolation):
     pass
@@ -143,32 +157,36 @@ def vault(gov, rewards, guardian, currency, pm):
 
 
 token_prices = {
-    "WBTC": 30_000,
-    "WETH": 1_500,
     "USDT": 1,
     "USDC": 1,
     "DAI": 1,
+    "LINK": 8,
+    "UNI": 7,
+    "AAVE": 94,
+    "TUSD": 1,
 }
 
 
 @pytest.fixture
-def valueOfCurrencyInDollars(currency):
-    yield token_prices[currency.symbol()]
+def valueOfCurrencyInDollars(token):
+    yield token_prices[token.symbol()]
 
 
+# TODO: check values
 dust_values = {
-    "WBTC": 1e2,
-    "ETH": 1e13,
     "USDT": 1e3,
     "USDC": 1e3,
     "DAI": 1e9,
+    "LINK": 1e9,
+    "UNI": 1e9,
+    "AAVE": 1e9,
+    "TUSD": 1e9,
 }
 
 
 @pytest.fixture
-def dust(currency):
-    # dust = 10 ** currency.decimals() / (c_token_prices[compCurrency.symbol()] * 5)
-    yield dust_values[currency.symbol()]
+def dust(token):
+    yield dust_values[token.symbol()]
 
 
 @pytest.fixture

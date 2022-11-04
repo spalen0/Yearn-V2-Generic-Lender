@@ -61,7 +61,7 @@ def test_clone(
 
     assert deposit_limit == vault.depositLimit()
     # our humble strategist deposits some test funds
-    depositAmount = 501 * (10 ** (decimals))
+    depositAmount = 10_000 * (10 ** (decimals))
     vault.deposit(depositAmount, {"from": strategist})
 
     assert cloned_strategy.estimatedTotalAssets() == 0
@@ -77,7 +77,7 @@ def test_clone(
     assert cloned_strategy.harvestTrigger(1) == False
 
     # whale deposits as well
-    whale_deposit = 100_000 * (10 ** (decimals))
+    whale_deposit = 500_000 * (10 ** (decimals))
     vault.deposit(whale_deposit, {"from": whale})
     chain.mine(1)
     assert cloned_strategy.harvestTrigger(1000) == True
@@ -97,10 +97,11 @@ def test_clone(
         if action < 3:
             percent = random.randint(50, 100)
 
-            shareprice = vault.pricePerShare()
-
             shares = vault.balanceOf(whale)
             print("whale has:", shares)
+            if shares == 0:
+                break
+            shareprice = vault.pricePerShare()
             sharesout = int(shares * percent / 100)
             expectedout = sharesout * shareprice / 10**decimals
 

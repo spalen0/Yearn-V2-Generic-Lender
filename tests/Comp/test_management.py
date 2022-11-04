@@ -32,6 +32,7 @@ def test_manual_override(
     vault.deposit(amount1, {"from": strategist})
     vault.deposit(amount2, {"from": whale})
 
+    chain.sleep(1)
     strategy.harvest({"from": strategist})
 
     status = strategy.lendStatuses()

@@ -81,6 +81,7 @@ contract GenericCompound is GenericLenderBase {
         IERC20(comp).safeApprove(address(uniswapRouter), type(uint256).max);
         minCompToClaim = 1 ether;
         minCompToSell = 1 ether;
+        // setting dust is importmant! see values for each asset in conifgtest
     }
 
     function cloneCompoundLender(

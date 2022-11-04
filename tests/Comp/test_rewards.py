@@ -19,6 +19,7 @@ def test_rewards(
     interface,
     GenericCompound,
     currency,
+    comp_whale,
 ):
 
     starting_balance = currency.balanceOf(strategist)
@@ -64,7 +65,7 @@ def test_rewards(
     # send some comp to the strategy
     comp = interface.ERC20(plugin.comp())
     toSend = 20 * (10**18)
-    comp.transfer(plugin.address, toSend, {"from": whale})
+    comp.transfer(plugin.address, toSend, {"from": comp_whale})
     assert comp.balanceOf(plugin.address) == toSend
     assert plugin.harvestTrigger(10) == True
     chain.sleep(10)
@@ -169,6 +170,7 @@ def test_trade_factory(
     trade_factory,
     weth,
     currency,
+    comp_whale,
 ):
 
     starting_balance = currency.balanceOf(strategist)
@@ -215,7 +217,7 @@ def test_trade_factory(
     # send some comp to the strategy
     comp = interface.ERC20(plugin.comp())
     toSend = 10 * (10**18)
-    comp.transfer(plugin.address, toSend, {"from": whale})
+    comp.transfer(plugin.address, toSend, {"from": comp_whale})
     assert comp.balanceOf(plugin.address) == toSend
     assert plugin.harvestTrigger(10) == True
 

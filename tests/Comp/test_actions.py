@@ -122,10 +122,11 @@ def test_normal_activity(
         if action < 3:
             percent = random.randint(50, 100)
 
-            shareprice = vault.pricePerShare()
-
             shares = vault.balanceOf(whale)
             print("whale has:", shares)
+            if shares == 0:
+                break
+            shareprice = vault.pricePerShare()
             sharesout = int(shares * percent / 100)
             expectedout = sharesout * shareprice / (10**decimals)
 
