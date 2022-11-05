@@ -29,11 +29,11 @@ contract GenericCompound is GenericLenderBase {
 
     // eth blocks are mined every 12s -> 3600 * 24 * 365 / 12 = 2_628_000
     uint256 private constant BLOCKS_PER_YEAR = 2_628_000;
-    address public constant uniswapRouter =
+    address public constant UNISWAP_ROUTER =
         address(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
-    address public constant comp =
+    address public constant COMP =
         address(0xc00e94Cb662C3520282E6f5717214004A7f26888);
-    address public constant weth =
+    address public constant WETH =
         address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     ComptrollerI public constant COMPTROLLER =
         ComptrollerI(0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B);
@@ -78,7 +78,7 @@ contract GenericCompound is GenericLenderBase {
         cToken = CErc20I(_cToken);
         require(cToken.underlying() == address(want), "WRONG CTOKEN");
         want.safeApprove(_cToken, uint256(-1));
-        IERC20(comp).safeApprove(address(uniswapRouter), type(uint256).max);
+        IERC20(COMP).safeApprove(address(UNISWAP_ROUTER), type(uint256).max);
         minCompToClaim = 1 ether;
         minCompToSell = 1 ether;
         // setting dust is importmant! see values for each asset in conifgtest
@@ -234,15 +234,15 @@ contract GenericCompound is GenericLenderBase {
     }
 
     function _disposeOfComp() internal {
-        uint256 compBalance = IERC20(comp).balanceOf(address(this));
+        uint256 compBalance = IERC20(COMP).balanceOf(address(this));
 
         if (compBalance > minCompToSell) {
             address[] memory path = new address[](3);
-            path[0] = comp;
-            path[1] = weth;
+            path[0] = COMP;
+            path[1] = WETH;
             path[2] = address(want);
 
-            IUniswapV2Router02(uniswapRouter).swapExactTokensForTokens(
+            IUniswapV2Router02(UNISWAP_ROUTER).swapExactTokensForTokens(
                 compBalance,
                 uint256(0),
                 path,
@@ -298,7 +298,7 @@ contract GenericCompound is GenericLenderBase {
         uint256 /*callCost*/
     ) external view returns (bool) {
         if (getRewardsPending() > minCompToClaim) return true;
-        if (IERC20(comp).balanceOf(address(this)) > minCompToSell) return true;
+        if (IERC20(COMP).balanceOf(address(this)) > minCompToSell) return true;
     }
 
     /**
@@ -363,7 +363,7 @@ contract GenericCompound is GenericLenderBase {
         address[] memory protected = new address[](3);
         protected[0] = address(want);
         protected[1] = address(cToken);
-        protected[2] = comp;
+        protected[2] = COMP;
         return protected;
     }
 
@@ -392,8 +392,8 @@ contract GenericCompound is GenericLenderBase {
 
         ITradeFactory tf = ITradeFactory(_tradeFactory);
 
-        IERC20(comp).safeApprove(_tradeFactory, type(uint256).max);
-        tf.enable(comp, address(want));
+        IERC20(COMP).safeApprove(_tradeFactory, type(uint256).max);
+        tf.enable(COMP, address(want));
         
         tradeFactory = _tradeFactory;
     }
@@ -403,7 +403,7 @@ contract GenericCompound is GenericLenderBase {
     }
 
     function _removeTradeFactoryPermissions() internal {
-        IERC20(comp).safeApprove(tradeFactory, 0);
+        IERC20(COMP).safeApprove(tradeFactory, 0);
         
         tradeFactory = address(0);
     }
