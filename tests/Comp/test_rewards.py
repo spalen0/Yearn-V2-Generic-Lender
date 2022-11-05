@@ -64,7 +64,7 @@ def test_rewards(
 
     # send some comp to the strategy
     comp = interface.ERC20(plugin.comp())
-    toSend = 20 * (10**18)
+    toSend = 20 * (10**comp.decimals())
     comp.transfer(plugin.address, toSend, {"from": comp_whale})
     assert comp.balanceOf(plugin.address) == toSend
     assert plugin.harvestTrigger(10) == True
@@ -216,7 +216,7 @@ def test_trade_factory(
 
     # send some comp to the strategy
     comp = interface.ERC20(plugin.comp())
-    toSend = 10 * (10**18)
+    toSend = 10 * (10**comp.decimals())
     comp.transfer(plugin.address, toSend, {"from": comp_whale})
     assert comp.balanceOf(plugin.address) == toSend
     assert plugin.harvestTrigger(10) == True

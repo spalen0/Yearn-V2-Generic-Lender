@@ -172,10 +172,11 @@ def valueOfCurrencyInDollars(token):
     yield token_prices[token.symbol()]
 
 
-# TODO: check values
+# minimal values for dust because to fix comptroller revert: redeemTokens zero
+# this happens because of when try to withdraw too small
 dust_values = {
-    "USDT": 1e3,
-    "USDC": 1e3,
+    "USDT": 1,
+    "USDC": 1,
     "DAI": 1e9,
     "LINK": 1e9,
     "UNI": 1e9,
