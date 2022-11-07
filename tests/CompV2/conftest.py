@@ -41,12 +41,12 @@ token_addresses = {
 @pytest.fixture(
     params=[
         "USDC",
-        "USDT",
-        "DAI",
-        "LINK",
-        "UNI",
-        "AAVE",
-        "TUSD",
+        # "USDT",
+        # "DAI",
+        # "LINK",
+        # "UNI",
+        # "AAVE",
+        # "TUSD",
         "WETH",
     ],
     scope="session",
@@ -177,7 +177,7 @@ def valueOfCurrencyInDollars(token):
     yield token_prices[token.symbol()]
 
 
-# minimal values for dust because to fix comptroller revert: redeemTokens zero
+# minimal values for dustThreshold because to fix comptroller revert: redeemTokens zero
 # this happens because of when try to withdraw too small
 dust_values = {
     "USDT": 1,
@@ -232,7 +232,7 @@ def strategy(
         strategy.addLender(compoundPlugin, {"from": gov})
         assert strategy.numLenders() == 1
 
-        compoundPlugin.setDust(dust)
+        compoundPlugin.setDustThreshold(dust)
         yield strategy
 
     else:
@@ -244,5 +244,5 @@ def strategy(
         strategy.addLender(compoundPlugin, {"from": gov})
         assert strategy.numLenders() == 1
 
-        compoundPlugin.setDust(dust)
+        compoundPlugin.setDustThreshold(dust)
         yield strategy

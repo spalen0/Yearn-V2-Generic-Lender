@@ -74,18 +74,23 @@ def test_setter_functions(
 
     minCompToSell = 10**20
     minCompToClaim = 10**5
+    dustThreshold = 10**10
 
     with brownie.reverts():
         plugin.setKeep3r(accounts[1], {"from": rando})
     with brownie.reverts():
         plugin.setRewardStuff(minCompToSell, minCompToClaim, {"from": rando})
+    with brownie.reverts():
+        plugin.setDustThreshold(dustThreshold, {"from": rando})
 
     plugin.setKeep3r(accounts[1], {"from": strategist})
     plugin.setRewardStuff(minCompToSell, minCompToClaim, {"from": strategist})
+    plugin.setDustThreshold(dustThreshold, {"from": strategist})
 
     assert plugin.keep3r() == accounts[1]
     assert plugin.minCompToSell() == minCompToSell
     assert plugin.minCompToClaim() == minCompToClaim
+    assert plugin.dustThreshold() == dustThreshold
 
     # only GenericCompound has clone function
     if pluginType != GenericCompound:
@@ -104,10 +109,14 @@ def test_setter_functions(
         clone.setKeep3r(accounts[1], {"from": rando})
     with brownie.reverts():
         clone.setRewardStuff(minCompToSell, minCompToClaim, {"from": rando})
+    with brownie.reverts():
+        clone.setDustThreshold(dustThreshold, {"from": rando})
 
     clone.setKeep3r(accounts[1], {"from": strategist})
     clone.setRewardStuff(minCompToSell, minCompToClaim, {"from": strategist})
+    clone.setDustThreshold(dustThreshold, {"from": strategist})
 
     assert clone.keep3r() == accounts[1]
     assert clone.minCompToSell() == minCompToSell
     assert clone.minCompToClaim() == minCompToClaim
+    assert clone.dustThreshold() == dustThreshold

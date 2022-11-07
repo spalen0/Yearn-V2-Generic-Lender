@@ -2,13 +2,13 @@
 pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
-import "./GenericLenderBase.sol";
-import "../Interfaces/Compound/CErc20I.sol";
-import "../Interfaces/Compound/InterestRateModel.sol";
-import "../Interfaces/Compound/ComptrollerI.sol";
-import "../Interfaces/Compound/UniswapAnchoredViewI.sol";
-import "../Interfaces/UniswapInterfaces/IUniswapV2Router02.sol";
-import "../Interfaces/ySwaps/ITradeFactory.sol";
+import "../GenericLenderBase.sol";
+import "../../Interfaces/Compound/CErc20I.sol";
+import "../../Interfaces/Compound/InterestRateModel.sol";
+import "../../Interfaces/Compound/ComptrollerI.sol";
+import "../../Interfaces/Compound/UniswapAnchoredViewI.sol";
+import "../../Interfaces/UniswapInterfaces/IUniswapV2Router02.sol";
+import "../../Interfaces/ySwaps/ITradeFactory.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -44,6 +44,7 @@ contract GenericCompound is GenericLenderBase {
     uint256 public minCompToSell;
     uint256 public minCompToClaim;
     address public keep3r;
+    uint256 public dustThreshold;
 
     CErc20I public cToken;
 
@@ -81,7 +82,7 @@ contract GenericCompound is GenericLenderBase {
         IERC20(COMP).safeApprove(address(UNISWAP_ROUTER), type(uint256).max);
         minCompToClaim = 1 ether;
         minCompToSell = 1 ether;
-        // setting dust is importmant! see values for each asset in conifgtest
+        // setting dustThreshold is importmant! see values for each asset in conifgtest
     }
 
     function cloneCompoundLender(
@@ -209,7 +210,7 @@ contract GenericCompound is GenericLenderBase {
         }
 
         uint256 toWithdraw = amount.sub(looseBalance);
-        if (toWithdraw > dust) {
+        if (toWithdraw > dustThreshold) {
             // withdraw all available liqudity from compound
             uint256 liquidity = want.balanceOf(address(cToken));
             if (toWithdraw <= liquidity) {
@@ -321,8 +322,8 @@ contract GenericCompound is GenericLenderBase {
 
     function hasAssets() external view override returns (bool) {
         return
-            cToken.balanceOf(address(this)) > dust ||
-            want.balanceOf(address(this)) > dust;
+            cToken.balanceOf(address(this)) > dustThreshold ||
+            want.balanceOf(address(this)) > 0;
     }
 
     /**
@@ -382,6 +383,10 @@ contract GenericCompound is GenericLenderBase {
 
     function setKeep3r(address _keep3r) external management {
         keep3r = _keep3r;
+    }
+
+    function setDustThreshold(uint256 _dustThreshold) external management {
+        dustThreshold = _dustThreshold;
     }
 
     // ---------------------- YSWAPS FUNCTIONS ----------------------
