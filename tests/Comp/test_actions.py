@@ -349,7 +349,7 @@ def test_apr(
     interface,
     whale,
     strategist,
-    GenericCompound,
+    pluginType,
 ):
     decimals = currency.decimals()
     deposit_limit = 100_000_000 * (10**decimals)
@@ -361,8 +361,8 @@ def test_apr(
     currency.approve(vault, 2**256 - 1, {"from": whale})
     currency.approve(vault, 2**256 - 1, {"from": gov})
 
-    amount1 = 100_000 * (10**decimals)
-    amount2 = 500_000 * (10**decimals)
+    amount1 = 10_000 * (10**decimals)
+    amount2 = 50_000 * (10**decimals)
     vault.deposit(amount1, {"from": gov})
     vault.deposit(amount2, {"from": whale})
 
@@ -370,7 +370,7 @@ def test_apr(
     strategy.harvest({"from": gov})
 
     # set lowest value to collect and sell comp rewards
-    plugin = GenericCompound.at(strategy.lenders(0))
+    plugin = pluginType.at(strategy.lenders(0))
     plugin.setRewardStuff(1, 1, {"from": gov})
 
     chain.sleep(1)

@@ -33,6 +33,7 @@ token_addresses = {
     "UNI": "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984",
     "AAVE": "0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9",
     "TUSD": "0x0000000000085d4780B73119b644AE5ecd22b376",
+    "WETH": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
 }
 
 
@@ -46,6 +47,7 @@ token_addresses = {
         "UNI",
         "AAVE",
         "TUSD",
+        "WETH",
     ],
     scope="session",
     autouse=True,
@@ -67,6 +69,7 @@ c_token_addresses = {
     "UNI": "0x35A18000230DA775CAc24873d00Ff85BccdeD550",
     "AAVE": "0xe65cdB6479BaC1e22340E4E755fAE7E509EcD06c",
     "TUSD": "0x12392F67bdf24faE0AF363c24aC620a2f67DAd86",
+    "WETH": "0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5",
 }
 
 
@@ -83,6 +86,7 @@ whale_addresses = {
     "UNI": "0x4b4e140d1f131fdad6fb59c13af796fd194e4135",
     "AAVE": "0x4da27a545c0c5b758a6ba100e3a049001de870f5",
     "TUSD": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "WETH": "0x2f0b23f53734252bda2277357e97e1517d6b042a",
 }
 
 
@@ -164,6 +168,7 @@ token_prices = {
     "UNI": 7,
     "AAVE": 94,
     "TUSD": 1,
+    "WETH": 1_600,
 }
 
 
@@ -182,12 +187,21 @@ dust_values = {
     "UNI": 1e9,
     "AAVE": 1e9,
     "TUSD": 1e9,
+    "WETH": 1e9,
 }
 
 
 @pytest.fixture
 def dust(token):
     yield dust_values[token.symbol()]
+
+
+@pytest.fixture
+def pluginType(currency, weth, GenericCompound, EthCompound):
+    plugin = GenericCompound
+    if currency.address == weth.address:
+        plugin = EthCompound
+    yield plugin
 
 
 @pytest.fixture
@@ -198,24 +212,37 @@ def strategy(
     keeper,
     vault,
     Strategy,
-    GenericCompound,
+    EthCompound,
     currency,
     compCurrency,
     dust,
+    pluginType,
 ):
     strategy = strategist.deploy(Strategy, vault)
     strategy.setKeeper(keeper, {"from": gov})
     strategy.setWithdrawalThreshold(0, {"from": gov})
     strategy.setRewards(rewards, {"from": strategist})
 
-    compoundPlugin = strategist.deploy(
-        GenericCompound, strategy, "Compound_" + currency.symbol(), compCurrency
-    )
-    assert compoundPlugin.apr() > 0
+    if pluginType == EthCompound:
+        compoundPlugin = strategist.deploy(
+            pluginType, strategy, "Compound_" + currency.symbol()
+        )
+        assert compoundPlugin.apr() > 0
 
-    strategy.addLender(compoundPlugin, {"from": gov})
-    assert strategy.numLenders() == 1
+        strategy.addLender(compoundPlugin, {"from": gov})
+        assert strategy.numLenders() == 1
 
-    compoundPlugin.setDust(dust)
+        compoundPlugin.setDust(dust)
+        yield strategy
 
-    yield strategy
+    else:
+        compoundPlugin = strategist.deploy(
+            pluginType, strategy, "Compound_" + currency.symbol(), compCurrency
+        )
+        assert compoundPlugin.apr() > 0
+
+        strategy.addLender(compoundPlugin, {"from": gov})
+        assert strategy.numLenders() == 1
+
+        compoundPlugin.setDust(dust)
+        yield strategy

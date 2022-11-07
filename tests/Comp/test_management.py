@@ -56,14 +56,17 @@ def test_setter_functions(
     gov,
     strategist,
     GenericCompound,
+    pluginType,
     rando,
     vault,
     strategy,
     accounts,
     compCurrency,
+    currency,
+    weth,
 ):
     # Check original values
-    plugin = GenericCompound.at(strategy.lenders(0))
+    plugin = pluginType.at(strategy.lenders(0))
 
     assert plugin.keep3r() == ZERO_ADDRESS
     assert plugin.minCompToSell() == 1 * (10**18)
@@ -83,6 +86,10 @@ def test_setter_functions(
     assert plugin.keep3r() == accounts[1]
     assert plugin.minCompToSell() == minCompToSell
     assert plugin.minCompToClaim() == minCompToClaim
+
+    # only GenericCompound has clone function
+    if pluginType != GenericCompound:
+        return
 
     tx = plugin.cloneCompoundLender(
         strategy, "CloneGC", compCurrency, {"from": strategist}

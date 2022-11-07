@@ -18,7 +18,12 @@ def test_clone(
     currency,
     compCurrency,
     dust,
+    pluginType,
 ):
+    # only GenericCompound has clone function
+    if pluginType != GenericCompound:
+        return
+
     # Clone magic
     tx = strategy.clone(vault)
     cloned_strategy = Strategy.at(tx.return_value)

@@ -17,14 +17,14 @@ def test_rewards(
     Strategy,
     strategy,
     interface,
-    GenericCompound,
+    pluginType,
     currency,
     comp_whale,
 ):
 
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
-    plugin = GenericCompound.at(strategy.lenders(0))
+    plugin = pluginType.at(strategy.lenders(0))
 
     currency.approve(vault, 2**256 - 1, {"from": whale})
     currency.approve(vault, 2**256 - 1, {"from": strategist})
@@ -63,8 +63,8 @@ def test_rewards(
     strategy.harvest({"from": strategist})
 
     # send some comp to the strategy
-    comp = interface.ERC20(plugin.comp())
-    toSend = 20 * (10**comp.decimals())
+    comp = interface.ERC20(plugin.COMP())
+    toSend = 20 * (10 ** comp.decimals())
     comp.transfer(plugin.address, toSend, {"from": comp_whale})
     assert comp.balanceOf(plugin.address) == toSend
     assert plugin.harvestTrigger(10) == True
@@ -103,12 +103,12 @@ def test_no_rewards(
     strategist,
     vault,
     strategy,
-    GenericCompound,
+    pluginType,
     currency,
 ):
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
-    plugin = GenericCompound.at(strategy.lenders(0))
+    plugin = pluginType.at(strategy.lenders(0))
 
     currency.approve(vault, 2**256 - 1, {"from": whale})
     currency.approve(vault, 2**256 - 1, {"from": strategist})
@@ -146,7 +146,7 @@ def test_no_rewards(
     chain.sleep(1)
     tx = strategy.harvest({"from": strategist})
 
-    comp = interface.ERC20(plugin.comp())
+    comp = interface.ERC20(plugin.COMP())
 
     assert plugin.harvestTrigger(10) == False
     assert comp.balanceOf(plugin) == 0
@@ -166,7 +166,7 @@ def test_trade_factory(
     vault,
     strategy,
     interface,
-    GenericCompound,
+    pluginType,
     trade_factory,
     weth,
     currency,
@@ -175,7 +175,7 @@ def test_trade_factory(
 
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
-    plugin = GenericCompound.at(strategy.lenders(0))
+    plugin = pluginType.at(strategy.lenders(0))
 
     currency.approve(vault, 2**256 - 1, {"from": whale})
     currency.approve(vault, 2**256 - 1, {"from": strategist})
@@ -215,8 +215,8 @@ def test_trade_factory(
     strategy.harvest({"from": strategist})
 
     # send some comp to the strategy
-    comp = interface.ERC20(plugin.comp())
-    toSend = 10 * (10**comp.decimals())
+    comp = interface.ERC20(plugin.COMP())
+    toSend = 10 * (10 ** comp.decimals())
     comp.transfer(plugin.address, toSend, {"from": comp_whale})
     assert comp.balanceOf(plugin.address) == toSend
     assert plugin.harvestTrigger(10) == True
