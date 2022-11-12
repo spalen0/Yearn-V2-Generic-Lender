@@ -272,7 +272,7 @@ contract GenericCompound is GenericLenderBase {
             holders[0] = address(this);
 
             // Claim only rewards for lending to reduce the gas cost
-            COMPTROLLER.claimComp(holders, cTokens, true, false);
+            COMPTROLLER.claimComp(holders, cTokens, false, true);
         }
     }
 
