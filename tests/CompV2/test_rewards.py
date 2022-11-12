@@ -21,7 +21,6 @@ def test_rewards(
     currency,
     comp_whale,
 ):
-
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
     plugin = pluginType.at(strategy.lenders(0))
@@ -172,7 +171,6 @@ def test_trade_factory(
     currency,
     comp_whale,
 ):
-
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
     plugin = pluginType.at(strategy.lenders(0))
@@ -303,3 +301,69 @@ def test_trade_factory(
     chain.sleep(6 * 3600)
     chain.mine(1)
     vault.withdraw({"from": strategist})
+
+
+def test_rewards_claim(
+    chain,
+    whale,
+    gov,
+    strategist,
+    rando,
+    vault,
+    Strategy,
+    strategy,
+    interface,
+    pluginType,
+    currency,
+    compCurrency,
+    comp_whale,
+):
+    starting_balance = currency.balanceOf(strategist)
+    decimals = currency.decimals()
+    plugin = pluginType.at(strategy.lenders(0))
+
+    currency.approve(vault, 2**256 - 1, {"from": whale})
+    currency.approve(vault, 2**256 - 1, {"from": strategist})
+
+    deposit_limit = 1_000_000_000 * (10 ** (decimals))
+    debt_ratio = 10_000
+    vault.addStrategy(strategy, debt_ratio, 0, 2**256 - 1, 500, {"from": gov})
+    vault.setDepositLimit(deposit_limit, {"from": gov})
+
+    assert deposit_limit == vault.depositLimit()
+    # our humble strategist deposits some test funds
+    depositAmount = 501 * (10 ** (decimals))
+    vault.deposit(depositAmount, {"from": strategist})
+
+    assert strategy.estimatedTotalAssets() == 0
+    chain.mine(1)
+    assert strategy.harvestTrigger(1) == True
+
+    chain.sleep(1)
+    strategy.harvest({"from": strategist})
+    assert plugin.harvestTrigger(10) == False
+
+    assert (
+        strategy.estimatedTotalAssets() >= depositAmount * 0.999999
+    )  # losing some dust is ok
+
+    minCompToSell = 2**256 - 1
+    minCompToClaim = 1
+    plugin.setRewardStuff(minCompToSell, minCompToClaim, {"from": strategist})
+
+    # whale deposits as well
+    whale_deposit = 100_000 * (10 ** (decimals))
+    vault.deposit(whale_deposit, {"from": whale})
+    chain.sleep(1)
+    strategy.harvest({"from": strategist})
+
+    # wait for rewards to accumulate
+    chain.sleep(3600 * 24 * 10)
+    plugin.getRewardsPending() > minCompToClaim
+    assert plugin.harvestTrigger(10) == True
+    plugin.harvest({"from": strategist})
+
+    # verify some reward tokens are claimed
+    plugin.getRewardsPending() == 0
+    comp = interface.ERC20(plugin.COMP())
+    assert comp.balanceOf(plugin.address) > minCompToClaim
