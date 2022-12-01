@@ -18,10 +18,10 @@ def test_clone(
     currency,
     compCurrency,
     dust,
-    pluginType,
+    plugin_type,
 ):
     # only GenericCompound has clone function
-    if pluginType != GenericCompound:
+    if plugin_type != GenericCompound:
         return
 
     # Clone magic

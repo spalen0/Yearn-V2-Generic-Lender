@@ -161,4 +161,6 @@ interface ComptrollerI {
         );
 
     function compSpeeds(address ctoken) external view returns (uint256);
+
+    function compSupplySpeeds(address ctoken) external view returns (uint256);
 }

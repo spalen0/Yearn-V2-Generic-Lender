@@ -140,6 +140,17 @@ def trade_factory():
     yield Contract("0xd6a8ae62f4d593DAf72E2D7c9f7bDB89AB069F06")
 
 
+@pytest.fixture
+def gas_oracle():
+    yield Contract("0xb5e1CAcB567d98faaDB60a1fD4820720141f064F")
+
+
+@pytest.fixture
+def strategist_ms(accounts):
+        # like governance, but better
+    yield accounts.at("0x16388463d60FFE0661Cf7F1f31a7D658aC790ff7", force=True)
+
+
 # specific token addresses
 @pytest.fixture
 def weth(interface):
@@ -197,7 +208,7 @@ def dust(token):
 
 
 @pytest.fixture
-def pluginType(currency, weth, GenericCompound, EthCompound):
+def plugin_type(currency, weth, GenericCompound, EthCompound):
     plugin = GenericCompound
     if currency.address == weth.address:
         plugin = EthCompound
@@ -216,16 +227,16 @@ def strategy(
     currency,
     compCurrency,
     dust,
-    pluginType,
+    plugin_type,
 ):
     strategy = strategist.deploy(Strategy, vault)
     strategy.setKeeper(keeper, {"from": gov})
     strategy.setWithdrawalThreshold(0, {"from": gov})
     strategy.setRewards(rewards, {"from": strategist})
 
-    if pluginType == EthCompound:
+    if plugin_type == EthCompound:
         compoundPlugin = strategist.deploy(
-            pluginType, strategy, "Compound_" + currency.symbol()
+            plugin_type, strategy, "Compound_" + currency.symbol()
         )
         assert compoundPlugin.apr() > 0
 
@@ -237,7 +248,7 @@ def strategy(
 
     else:
         compoundPlugin = strategist.deploy(
-            pluginType, strategy, "Compound_" + currency.symbol(), compCurrency
+            plugin_type, strategy, "Compound_" + currency.symbol(), compCurrency
         )
         assert compoundPlugin.apr() > 0
 

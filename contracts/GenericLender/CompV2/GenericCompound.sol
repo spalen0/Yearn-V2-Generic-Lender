@@ -9,6 +9,7 @@ import "../../Interfaces/Compound/ComptrollerI.sol";
 import "../../Interfaces/Compound/UniswapAnchoredViewI.sol";
 import "../../Interfaces/UniswapInterfaces/IUniswapV2Router02.sol";
 import "../../Interfaces/ySwaps/ITradeFactory.sol";
+import "../../Interfaces/utils/IBaseFee.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -142,23 +143,26 @@ contract GenericCompound is GenericLenderBase {
         view
         returns (uint256)
     {
+        // COMP issued per block to suppliers * (1 * 10 ^ 18)
+        uint256 compSpeed = COMPTROLLER.compSupplySpeeds(address(cToken));
+        if (compSpeed == 0) {
+            return 0;
+        }
+        // Approximate COMP issued per year to suppliers OR borrowers * (1 * 10 ^ 18)
+        uint256 compSpeedPerYear = compSpeed * BLOCKS_PER_YEAR;
+
         // The price of the asset in USD as an unsigned integer scaled up by 10 ^ 6
         uint256 rewardTokenPriceInUsd = PRICE_FEED.price("COMP");
 
         // The price of the asset in USD as an unsigned integer scaled up by 10 ^ (36 - underlying asset decimals)
         uint256 wantPriceInUsd = PRICE_FEED.getUnderlyingPrice(address(cToken));
+        uint256 wantTotalSupply = cToken.totalSupply().mul(wantPriceInUsd).add(newAmount);
 
-        uint256 wantTotalSupply = cToken.totalSupply().add(newAmount);
-
-        // COMP issued per block to suppliers OR borrowers * (1 * 10 ^ 18)
-        uint256 compSpeed = COMPTROLLER.compSpeeds(address(cToken));
-        // Approximate COMP issued per year to suppliers OR borrowers * (1 * 10 ^ 18)
-        uint256 compSpeedPerYear = compSpeed * BLOCKS_PER_YEAR;
         // result 1e18 = 1e6 * 1e12 * 1e18 / 1e18
         uint256 supplyBaseRewardApr = rewardTokenPriceInUsd
             .mul(1e12)
             .mul(compSpeedPerYear)
-            .div(wantTotalSupply.mul(wantPriceInUsd));
+            .div(wantTotalSupply);
 
         if (vault.decimals() < 18) {
             // scale value to 1e18, see wantPriceInUsd scaling above
@@ -195,6 +199,7 @@ contract GenericCompound is GenericLenderBase {
 
     function _withdraw(uint256 amount) internal returns (uint256) {
         // underlying balance is in want token, no need for additional conversion
+        // balanceOfUnderlying accrues interest in a transaction
         uint256 balanceUnderlying = cToken.balanceOfUnderlying(address(this));
         uint256 looseBalance = want.balanceOf(address(this));
         uint256 total = balanceUnderlying.add(looseBalance);
@@ -258,29 +263,34 @@ contract GenericCompound is GenericLenderBase {
      * @return Amount of pending COMP tokens
      */
     function getRewardsPending() public view returns (uint256) {
+        // CompMarketState storage supplyState = compSupplyState[cToken];
+        // uint supplyIndex = supplyState.index;
+        // uint supplierIndex = compSupplierIndex[cToken][supplier];
         return COMPTROLLER.compAccrued(address(this));
     }
 
     /**
      * @notice Collect all pending COMP rewards for supplying want token
      */
-    function claimComp() public {
-        if (getRewardsPending() > minCompToClaim) {
-            CTokenI[] memory cTokens = new CTokenI[](1);
-            cTokens[0] = cToken;
-            address[] memory holders = new address[](1);
-            holders[0] = address(this);
+    function claimComp() external keepers {
+        _claimComp();
+    }
 
-            // Claim only rewards for lending to reduce the gas cost
-            COMPTROLLER.claimComp(holders, cTokens, false, true);
-        }
+    function _claimComp() internal {
+        CTokenI[] memory cTokens = new CTokenI[](1);
+        cTokens[0] = cToken;
+        address[] memory holders = new address[](1);
+        holders[0] = address(this);
+
+        // Claim only rewards for lending to reduce the gas cost
+        COMPTROLLER.claimComp(holders, cTokens, false, true);
     }
 
     /**
      * @notice Collect rewards, dispose them for want token and supply to protocol
      */
     function harvest() external keepers {
-        claimComp();
+        _claimComp();
         if (tradeFactory == address(0)) {
             _disposeOfComp();
         }
@@ -298,8 +308,8 @@ contract GenericCompound is GenericLenderBase {
     function harvestTrigger(
         uint256 /*callCost*/
     ) external view returns (bool) {
-        if (getRewardsPending() > minCompToClaim) return true;
-        if (IERC20(COMP).balanceOf(address(this)) > minCompToSell) return true;
+        if (!isBaseFeeAcceptable()) return false;
+        if (IERC20(COMP).balanceOf(address(this)).add(getRewardsPending()) > minCompToClaim) return true;
     }
 
     /**
@@ -315,6 +325,7 @@ contract GenericCompound is GenericLenderBase {
      * @return Is more asset returned than invested
      */
     function withdrawAll() external override management returns (bool) {
+        cToken.accrueInterest();
         uint256 invested = _nav();
         uint256 returned = _withdraw(invested);
         return returned >= invested;
@@ -361,11 +372,16 @@ contract GenericCompound is GenericLenderBase {
         override
         returns (address[] memory)
     {
-        address[] memory protected = new address[](3);
+        address[] memory protected = new address[](1);
         protected[0] = address(want);
-        protected[1] = address(cToken);
-        protected[2] = COMP;
         return protected;
+    }
+
+    // check if the current baseFee is below our external target
+    function isBaseFeeAcceptable() internal view returns (bool) {
+        return
+            IBaseFee(0xb5e1CAcB567d98faaDB60a1fD4820720141f064F)
+                .isCurrentBaseFeeAcceptable();
     }
 
     /**

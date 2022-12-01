@@ -17,13 +17,16 @@ def test_rewards(
     Strategy,
     strategy,
     interface,
-    pluginType,
+    plugin_type,
     currency,
     comp_whale,
+    gas_oracle,
+    strategist_ms,
 ):
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
-    plugin = pluginType.at(strategy.lenders(0))
+    plugin = plugin_type.at(strategy.lenders(0))
+    gas_oracle.setMaxAcceptableBaseFee(10000 * 1e9, {"from": strategist_ms})
 
     currency.approve(vault, 2**256 - 1, {"from": whale})
     currency.approve(vault, 2**256 - 1, {"from": strategist})
@@ -102,12 +105,12 @@ def test_no_rewards(
     strategist,
     vault,
     strategy,
-    pluginType,
+    plugin_type,
     currency,
 ):
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
-    plugin = pluginType.at(strategy.lenders(0))
+    plugin = plugin_type.at(strategy.lenders(0))
 
     currency.approve(vault, 2**256 - 1, {"from": whale})
     currency.approve(vault, 2**256 - 1, {"from": strategist})
@@ -165,15 +168,18 @@ def test_trade_factory(
     vault,
     strategy,
     interface,
-    pluginType,
+    plugin_type,
     trade_factory,
     weth,
     currency,
     comp_whale,
+    gas_oracle,
+    strategist_ms,
 ):
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
-    plugin = pluginType.at(strategy.lenders(0))
+    plugin = plugin_type.at(strategy.lenders(0))
+    gas_oracle.setMaxAcceptableBaseFee(10000 * 1e9, {"from": strategist_ms})
 
     currency.approve(vault, 2**256 - 1, {"from": whale})
     currency.approve(vault, 2**256 - 1, {"from": strategist})
@@ -234,7 +240,7 @@ def test_trade_factory(
     plugin.harvest({"from": gov})
 
     # nothing should have been sold because ySwap is set and not yet executed
-    assert comp.balanceOf(plugin.address) == toSend
+    assert comp.balanceOf(plugin.address) >= toSend
     token_in = comp
     token_out = currency
 
@@ -313,14 +319,17 @@ def test_rewards_claim(
     Strategy,
     strategy,
     interface,
-    pluginType,
+    plugin_type,
     currency,
     compCurrency,
     comp_whale,
+    gas_oracle,
+    strategist_ms
 ):
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
-    plugin = pluginType.at(strategy.lenders(0))
+    plugin = plugin_type.at(strategy.lenders(0))
+    gas_oracle.setMaxAcceptableBaseFee(10000 * 1e9, {"from": strategist_ms})
 
     currency.approve(vault, 2**256 - 1, {"from": whale})
     currency.approve(vault, 2**256 - 1, {"from": strategist})
@@ -355,6 +364,7 @@ def test_rewards_claim(
     whale_deposit = 100_000 * (10 ** (decimals))
     vault.deposit(whale_deposit, {"from": whale})
     chain.sleep(1)
+    # this will trigger the rewards to calculate
     strategy.harvest({"from": strategist})
 
     # wait for rewards to accumulate

@@ -56,7 +56,7 @@ def test_setter_functions(
     gov,
     strategist,
     GenericCompound,
-    pluginType,
+    plugin_type,
     rando,
     vault,
     strategy,
@@ -66,7 +66,7 @@ def test_setter_functions(
     weth,
 ):
     # Check original values
-    plugin = pluginType.at(strategy.lenders(0))
+    plugin = plugin_type.at(strategy.lenders(0))
 
     assert plugin.keep3r() == ZERO_ADDRESS
     assert plugin.minCompToSell() == 1 * (10**18)
@@ -93,7 +93,7 @@ def test_setter_functions(
     assert plugin.dustThreshold() == dustThreshold
 
     # only GenericCompound has clone function
-    if pluginType != GenericCompound:
+    if plugin_type != GenericCompound:
         return
 
     tx = plugin.cloneCompoundLender(
