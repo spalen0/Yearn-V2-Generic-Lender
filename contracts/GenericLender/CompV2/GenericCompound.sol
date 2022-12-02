@@ -299,7 +299,7 @@ contract GenericCompound is GenericLenderBase {
      */
     function harvest() external keepers {
         _claimComp();
-        if (tradeFactory == address(0) || compToEthFee != 0) {
+        if (tradeFactory == address(0) && compToEthFee != 0) {
             _disposeOfComp();
         }
         
