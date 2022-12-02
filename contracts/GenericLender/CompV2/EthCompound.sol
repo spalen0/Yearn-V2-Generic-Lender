@@ -214,7 +214,16 @@ contract EthCompound is GenericLenderBase {
      * @return Amount of pending COMP tokens
      */
     function getRewardsPending() public view returns (uint256) {
-        return COMPTROLLER.compAccrued(address(this));
+        // https://github.com/compound-finance/compound-protocol/blob/master/contracts/Comptroller.sol#L1230
+        ComptrollerI.CompMarketState memory supplyState = COMPTROLLER.compSupplyState(address(C_ETH));
+        uint256 supplyIndex = supplyState.index;
+        uint256 supplierIndex = COMPTROLLER.compSupplierIndex(address(C_ETH), address(this));
+
+        // Calculate change in the cumulative sum of the COMP per cToken accrued
+        uint256 deltaIndex = supplyIndex.sub(supplierIndex);
+
+        // Calculate COMP accrued: cTokenAmount * accruedPerCToken / doubleScale
+        return C_ETH.balanceOf(address(this)).mul(deltaIndex).div(1e36);
     }
 
     /**

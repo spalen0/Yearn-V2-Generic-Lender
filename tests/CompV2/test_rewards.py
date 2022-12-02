@@ -312,7 +312,8 @@ def test_trade_factory(
     vault.withdraw({"from": strategist})
 
 
-def test_rewards_claim(
+
+def test_rewards_calculation_and_claim(
     chain,
     whale,
     gov,
@@ -327,7 +328,8 @@ def test_rewards_claim(
     compCurrency,
     comp_whale,
     gas_oracle,
-    strategist_ms
+    strategist_ms,
+    EthCompound,
 ):
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
@@ -367,19 +369,29 @@ def test_rewards_claim(
     whale_deposit = 100_000 * (10 ** (decimals))
     vault.deposit(whale_deposit, {"from": whale})
     chain.sleep(1)
-    # this will trigger the rewards to calculate
-    strategy.harvest({"from": strategist})
 
     # wait for rewards to accumulate
-    chain.sleep(3600 * 24 * 10)
-    plugin.getRewardsPending() > minCompToClaim
+    chain.sleep(3600 * 24 * 100)
+
+    # somebody else, not strategy, deposited to cToken to trigger rewards calculations
+    if plugin_type == EthCompound:
+        compCurrency.mint(10, {"from": whale})
+    else:
+        currency.approve(compCurrency, 2**256 - 1, {"from": whale})
+        compCurrency.mint(10 * (10 ** (decimals)), {"from": whale})
+
+    pendingRewards = plugin.getRewardsPending()
+    assert pendingRewards > minCompToClaim
     assert plugin.harvestTrigger(10) == True
     plugin.harvest({"from": strategist})
 
-    # verify some reward tokens are claimed
-    plugin.getRewardsPending() == 0
+    # verify reward tokens are claimed
+    assert plugin.getRewardsPending() == 0
     comp = interface.ERC20(plugin.COMP())
-    assert comp.balanceOf(plugin.address) > minCompToClaim
+    # verify calculating pending rewards is ok
+    rewardsBalance = comp.balanceOf(plugin.address)
+    # ETH has higher difference between claimed(higher) and calculated(lower)
+    assert rewardsBalance > pendingRewards and rewardsBalance < pendingRewards * 1.35
 
 
 def test_rewards_apr(strategy, plugin_type, currency):

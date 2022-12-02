@@ -165,4 +165,15 @@ interface ComptrollerI {
     function compSupplySpeeds(address ctoken) external view returns (uint256);
 
     function oracle() external view returns (address);
+
+    struct CompMarketState {
+        // The market's last updated compBorrowIndex or compSupplyIndex
+        uint224 index;
+
+        // The block number the index was last updated at
+        uint32 block;
+    }
+    function compSupplyState(address) external view returns (CompMarketState memory);
+
+    function compSupplierIndex(address, address) external view returns (uint256);
 }
