@@ -153,7 +153,7 @@ contract GenericCompound is GenericLenderBase {
         if (compSpeedPerBlock == 0) {
             return 0;
         }
-        // Approximate COMP issued per year to suppliers OR borrowers * (1 * 10 ^ 18)
+        // Approximate COMP issued per year to suppliers * (1 * 10 ^ 18)
         uint256 compSpeedPerYear = compSpeedPerBlock * BLOCKS_PER_YEAR;
 
         // The price of the asset in USD as an unsigned integer scaled up by 10 ^ 6
@@ -161,16 +161,17 @@ contract GenericCompound is GenericLenderBase {
 
         // https://docs.compound.finance/v2/prices/#underlying-price
         // The price of the asset in USD as an unsigned integer scaled up by 10 ^ (36 - underlying asset decimals)
-        uint256 wantPriceInUsd = PRICE_FEED.getUnderlyingPrice(address(cToken)).div(10**(36 - vault.decimals()));
+        // upscale to price COMP percision 10 ^ 6
+        uint256 wantPriceInUsd = PRICE_FEED.getUnderlyingPrice(address(cToken))
+            .div(10**(30 - vault.decimals()));
 
         // https://docs.compound.finance/v2/#protocol-math
-        // mantissa = 18 + vault.decimals(underlying decimals) - 8(cToken decimals)
+        // mantissa = 18 + vault.decimals(underlying decimals) - 8(cToken decimals) - 8(upscale)
         uint256 cTokenTotalSupplyInWant = cToken.totalSupply().mul(cToken.exchangeRateStored())
-            .div(10**(10 + vault.decimals()));
+            .div(10**(2 + vault.decimals()));
 
         return rewardTokenPriceInUsd
             .mul(compSpeedPerYear)
-            .mul(1e2)
             .div(cTokenTotalSupplyInWant.add(newAmount).mul(wantPriceInUsd));
     }
 

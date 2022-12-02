@@ -382,7 +382,7 @@ def test_rewards_claim(
     assert comp.balanceOf(plugin.address) > minCompToClaim
 
 
-def test_rewards_apr(strategy, plugin_type):
+def test_rewards_apr(strategy, plugin_type, currency):
     plugin = plugin_type.at(strategy.lenders(0))
     # get apr in percentage (100 / 1e18)
     apr = plugin.getRewardAprForSupplyBase(0) / 1e16
@@ -390,4 +390,4 @@ def test_rewards_apr(strategy, plugin_type):
         assert apr < 1 # all rewards are less than 1%
         assert apr > 0.1 # all rewards are higher than 0.1%
         # supplying more capital should reward in small rewards
-        assert plugin.getRewardAprForSupplyBase(0) > plugin.getRewardAprForSupplyBase(10)
+        assert plugin.getRewardAprForSupplyBase(0) > plugin.getRewardAprForSupplyBase(10 ** currency.decimals())
