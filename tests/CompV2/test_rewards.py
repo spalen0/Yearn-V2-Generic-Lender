@@ -36,6 +36,9 @@ def test_rewards(
     vault.addStrategy(strategy, debt_ratio, 0, 2**256 - 1, 500, {"from": gov})
     vault.setDepositLimit(deposit_limit, {"from": gov})
 
+    #Set uni fees
+    plugin.setUniFees(3000, 500, {"from": strategist})
+
     assert deposit_limit == vault.depositLimit()
     # our humble strategist deposits some test funds
     depositAmount = 501 * (10 ** (decimals))
@@ -146,13 +149,13 @@ def test_no_rewards(
     assert strategy.harvestTrigger(1000) == True
     assert plugin.harvestTrigger(10) == False
     chain.sleep(1)
+    # harvest should work without rewards
     tx = strategy.harvest({"from": strategist})
 
     comp = interface.ERC20(plugin.COMP())
 
     assert plugin.harvestTrigger(10) == False
     assert comp.balanceOf(plugin) == 0
-    assert plugin.getRewardAprForSupplyBase(0) == 0
 
     # should still be able to call harvest
     chain.sleep(1)
@@ -377,3 +380,14 @@ def test_rewards_claim(
     plugin.getRewardsPending() == 0
     comp = interface.ERC20(plugin.COMP())
     assert comp.balanceOf(plugin.address) > minCompToClaim
+
+
+def test_rewards_apr(strategy, plugin_type):
+    plugin = plugin_type.at(strategy.lenders(0))
+    # get apr in percentage (100 / 1e18)
+    apr = plugin.getRewardAprForSupplyBase(0) / 1e16
+    if apr != 0:
+        assert apr < 1 # all rewards are less than 1%
+        assert apr > 0.1 # all rewards are higher than 0.1%
+        # supplying more capital should reward in small rewards
+        assert plugin.getRewardAprForSupplyBase(0) > plugin.getRewardAprForSupplyBase(10)

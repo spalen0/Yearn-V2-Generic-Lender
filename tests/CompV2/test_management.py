@@ -75,6 +75,8 @@ def test_setter_functions(
     minCompToSell = 10**20
     minCompToClaim = 10**5
     dustThreshold = 10**10
+    compEthFee = 3000
+    ethWantFee = 100
 
     with brownie.reverts():
         plugin.setKeep3r(accounts[1], {"from": rando})
@@ -82,15 +84,20 @@ def test_setter_functions(
         plugin.setRewardStuff(minCompToSell, minCompToClaim, {"from": rando})
     with brownie.reverts():
         plugin.setDustThreshold(dustThreshold, {"from": rando})
+    with brownie.reverts():
+        plugin.setUniFees(compEthFee, ethWantFee, {"from": rando})
 
     plugin.setKeep3r(accounts[1], {"from": strategist})
     plugin.setRewardStuff(minCompToSell, minCompToClaim, {"from": strategist})
     plugin.setDustThreshold(dustThreshold, {"from": strategist})
+    plugin.setUniFees(compEthFee, ethWantFee, {"from": strategist})
 
     assert plugin.keep3r() == accounts[1]
     assert plugin.minCompToSell() == minCompToSell
     assert plugin.minCompToClaim() == minCompToClaim
     assert plugin.dustThreshold() == dustThreshold
+    assert plugin.ethToWantFee() == ethWantFee
+    assert plugin.compToEthFee() == compEthFee
 
     # only GenericCompound has clone function
     if plugin_type != GenericCompound:
@@ -104,6 +111,9 @@ def test_setter_functions(
     assert clone.keep3r() == ZERO_ADDRESS
     assert clone.minCompToSell() == 1 * (10**18)
     assert clone.minCompToClaim() == 1 * (10**18)
+    assert clone.dustThreshold() == 0
+    assert clone.ethToWantFee() == 0
+    assert clone.compToEthFee() == 0
 
     with brownie.reverts():
         clone.setKeep3r(accounts[1], {"from": rando})
@@ -111,12 +121,17 @@ def test_setter_functions(
         clone.setRewardStuff(minCompToSell, minCompToClaim, {"from": rando})
     with brownie.reverts():
         clone.setDustThreshold(dustThreshold, {"from": rando})
+    with brownie.reverts():
+        clone.setUniFees(compEthFee, ethWantFee, {"from": rando})
 
     clone.setKeep3r(accounts[1], {"from": strategist})
     clone.setRewardStuff(minCompToSell, minCompToClaim, {"from": strategist})
     clone.setDustThreshold(dustThreshold, {"from": strategist})
+    clone.setUniFees(compEthFee, ethWantFee, {"from": strategist})
 
     assert clone.keep3r() == accounts[1]
     assert clone.minCompToSell() == minCompToSell
     assert clone.minCompToClaim() == minCompToClaim
     assert clone.dustThreshold() == dustThreshold
+    assert clone.ethToWantFee() == ethWantFee
+    assert clone.compToEthFee() == compEthFee

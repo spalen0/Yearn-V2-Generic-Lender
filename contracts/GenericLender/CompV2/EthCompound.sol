@@ -7,7 +7,7 @@ import "../../Interfaces/Compound/CEtherI.sol";
 import "../../Interfaces/Compound/InterestRateModel.sol";
 import "../../Interfaces/Compound/ComptrollerI.sol";
 import "../../Interfaces/Compound/UniswapAnchoredViewI.sol";
-import "../../Interfaces/UniswapInterfaces/IUniswapV2Router02.sol";
+import "../../Interfaces/UniswapInterfaces/V3/ISwapRouter.sol";
 import "../../Interfaces/UniswapInterfaces/IWETH.sol";
 import "../../Interfaces/ySwaps/ITradeFactory.sol";
 import "../../Interfaces/utils/IBaseFee.sol";
@@ -27,10 +27,15 @@ contract EthCompound is GenericLenderBase {
     using Address for address;
     using SafeMath for uint256;
 
+    //Uniswap v3 router
+    ISwapRouter internal constant UNISWAP_ROUTER =
+        ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
+    //Fees for the V3 pools if the supply is incentivized
+    uint24 public compToEthFee;
+    uint24 public ethToWantFee;
+
     // eth blocks are mined every 12s -> 3600 * 24 * 365 / 12 = 2_628_000
     uint256 private constant BLOCKS_PER_YEAR = 2_628_000;
-    address public constant UNISWAP_ROUTER =
-        address(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
     address public constant COMP =
         address(0xc00e94Cb662C3520282E6f5717214004A7f26888);
     ComptrollerI public constant COMPTROLLER =
@@ -107,27 +112,27 @@ contract EthCompound is GenericLenderBase {
         returns (uint256)
     {
         // COMP issued per block to suppliers OR borrowers * (1 * 10 ^ 18)
-        uint256 compSpeed = COMPTROLLER.compSpeeds(address(C_ETH));
-        if (compSpeed == 0) {
+        uint256 compSpeedPerBlock = COMPTROLLER.compSupplySpeeds(address(C_ETH));
+        if (compSpeedPerBlock == 0) {
             return 0;
         }
         // Approximate COMP issued per year to suppliers OR borrowers * (1 * 10 ^ 18)
-        uint256 compSpeedPerYear = compSpeed * BLOCKS_PER_YEAR;
+        uint256 compSpeedPerYear = compSpeedPerBlock * BLOCKS_PER_YEAR;
 
         // The price of the asset in USD as an unsigned integer scaled up by 10 ^ 6
         uint256 rewardTokenPriceInUsd = PRICE_FEED.price("COMP");
 
-        // The price of the asset in USD as an unsigned integer scaled up by 10 ^ (36 - underlying asset decimals)
-        uint256 wantPriceInUsd = PRICE_FEED.getUnderlyingPrice(address(C_ETH));
-        uint256 wantTotalSupply = C_ETH.totalSupply().mul(wantPriceInUsd).add(newAmount);
+        // The price of the asset in USD as an unsigned integer scaled up by 10 ^ (36 - 18(underlying asset decimals))
+        uint256 wantPriceInUsd = PRICE_FEED.getUnderlyingPrice(address(C_ETH)).div(10**18);
 
-        // result 1e18 = 1e6 * 1e12 * 1e18 / 1e18
-        uint256 supplyBaseRewardApr = rewardTokenPriceInUsd
-            .mul(1e12)
+        // https://docs.compound.finance/v2/#protocol-math
+        // mantissa = 18 + 18(underlying decimals) - 8(cToken decimals) = 28
+        uint256 cTokenTotalSupplyInWant = C_ETH.totalSupply().mul(C_ETH.exchangeRateStored()).div(10**28);
+
+        return rewardTokenPriceInUsd
             .mul(compSpeedPerYear)
-            .div(wantTotalSupply);
-
-        return supplyBaseRewardApr;
+            .mul(1e2)
+            .div(cTokenTotalSupplyInWant.add(newAmount).mul(wantPriceInUsd));
     }
 
     function weightedApr() external view override returns (uint256) {
@@ -186,22 +191,24 @@ contract EthCompound is GenericLenderBase {
     }
 
     function _disposeOfComp() internal {
-        uint256 comp = IERC20(COMP).balanceOf(address(this));
+        uint256 compBalance = IERC20(COMP).balanceOf(address(this));
 
-        if (comp > minCompToSell) {
-            address[] memory path = new address[](2);
-            path[0] = COMP;
-            path[1] = address(want);
-
-            IUniswapV2Router02(UNISWAP_ROUTER).swapExactTokensForTokens(
-                comp,
-                uint256(0),
-                path,
-                address(this),
-                now
-            );
+        if (compBalance > minCompToSell) {
+            ISwapRouter.ExactInputSingleParams memory params =
+                ISwapRouter.ExactInputSingleParams(
+                    COMP, // tokenIn
+                    address(want), // tokenOut
+                    compToEthFee, // comp-eth fee
+                    address(this), // recipient
+                    now, // deadline
+                    compBalance, // amountIn
+                    0, // amountOut
+                    0 // sqrtPriceLimitX96
+                );
+            UNISWAP_ROUTER.exactInputSingle(params);
         }
     }
+
     /**
      * @notice Get pending COMP rewards for supplying want token
      * @return Amount of pending COMP tokens
@@ -235,7 +242,7 @@ contract EthCompound is GenericLenderBase {
      */
     function harvest() external keepers {
         _claimComp();
-        if (tradeFactory == address(0)) {
+        if (tradeFactory == address(0) || compToEthFee != 0) {
             _disposeOfComp();
         }
 
@@ -326,6 +333,13 @@ contract EthCompound is GenericLenderBase {
         return
             IBaseFee(0xb5e1CAcB567d98faaDB60a1fD4820720141f064F)
                 .isCurrentBaseFeeAcceptable();
+    }
+
+    //These will default to 0.
+    //Will need to be manually set if want is incentized before any harvests
+    function setUniFees(uint24 _compToEth, uint24 _ethToWant) external management {
+        compToEthFee = _compToEth;
+        ethToWantFee = _ethToWant;
     }
 
     /**
