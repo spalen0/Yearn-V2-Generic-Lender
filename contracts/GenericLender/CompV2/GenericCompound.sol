@@ -449,6 +449,7 @@ contract GenericCompound is GenericLenderBase {
 
     function _removeTradeFactoryPermissions() internal {
         IERC20(COMP).safeApprove(tradeFactory, 0);
+        ITradeFactory(tradeFactory).disable(COMP, address(want));
         
         tradeFactory = address(0);
     }
