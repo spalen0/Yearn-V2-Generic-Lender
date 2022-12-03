@@ -349,7 +349,7 @@ def test_apr(
     interface,
     whale,
     strategist,
-    plugin_type,
+    pluginType,
 ):
     decimals = currency.decimals()
     deposit_limit = 100_000_000 * (10**decimals)
@@ -370,7 +370,7 @@ def test_apr(
     strategy.harvest({"from": gov})
 
     # set lowest value to collect and sell comp rewards
-    plugin = plugin_type.at(strategy.lenders(0))
+    plugin = pluginType.at(strategy.lenders(0))
     plugin.setRewardStuff(1, 1, {"from": gov})
 
     chain.sleep(1)

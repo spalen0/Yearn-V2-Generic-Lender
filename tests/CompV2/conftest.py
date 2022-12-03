@@ -208,7 +208,7 @@ def dust(token):
 
 
 @pytest.fixture
-def plugin_type(currency, weth, GenericCompound, EthCompound):
+def pluginType(currency, weth, GenericCompound, EthCompound):
     plugin = GenericCompound
     if currency.address == weth.address:
         plugin = EthCompound
@@ -227,16 +227,16 @@ def strategy(
     currency,
     compCurrency,
     dust,
-    plugin_type,
+    pluginType,
 ):
     strategy = strategist.deploy(Strategy, vault)
     strategy.setKeeper(keeper, {"from": gov})
     strategy.setWithdrawalThreshold(0, {"from": gov})
     strategy.setRewards(rewards, {"from": strategist})
 
-    if plugin_type == EthCompound:
+    if pluginType == EthCompound:
         compoundPlugin = strategist.deploy(
-            plugin_type, strategy, "Compound_" + currency.symbol()
+            pluginType, strategy, "Compound_" + currency.symbol()
         )
         assert compoundPlugin.apr() > 0
 
@@ -248,7 +248,7 @@ def strategy(
 
     else:
         compoundPlugin = strategist.deploy(
-            plugin_type, strategy, "Compound_" + currency.symbol(), compCurrency
+            pluginType, strategy, "Compound_" + currency.symbol(), compCurrency
         )
         assert compoundPlugin.apr() > 0
 

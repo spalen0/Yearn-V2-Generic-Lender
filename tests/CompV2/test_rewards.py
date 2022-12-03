@@ -17,7 +17,7 @@ def test_rewards(
     Strategy,
     strategy,
     interface,
-    plugin_type,
+    pluginType,
     currency,
     comp_whale,
     gas_oracle,
@@ -25,7 +25,7 @@ def test_rewards(
 ):
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
-    plugin = plugin_type.at(strategy.lenders(0))
+    plugin = pluginType.at(strategy.lenders(0))
     gas_oracle.setMaxAcceptableBaseFee(10000 * 1e9, {"from": strategist_ms})
 
     currency.approve(vault, 2**256 - 1, {"from": whale})
@@ -108,12 +108,12 @@ def test_no_rewards(
     strategist,
     vault,
     strategy,
-    plugin_type,
+    pluginType,
     currency,
 ):
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
-    plugin = plugin_type.at(strategy.lenders(0))
+    plugin = pluginType.at(strategy.lenders(0))
 
     currency.approve(vault, 2**256 - 1, {"from": whale})
     currency.approve(vault, 2**256 - 1, {"from": strategist})
@@ -171,7 +171,7 @@ def test_trade_factory(
     vault,
     strategy,
     interface,
-    plugin_type,
+    pluginType,
     trade_factory,
     weth,
     currency,
@@ -181,7 +181,7 @@ def test_trade_factory(
 ):
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
-    plugin = plugin_type.at(strategy.lenders(0))
+    plugin = pluginType.at(strategy.lenders(0))
     gas_oracle.setMaxAcceptableBaseFee(10000 * 1e9, {"from": strategist_ms})
 
     currency.approve(vault, 2**256 - 1, {"from": whale})
@@ -323,7 +323,7 @@ def test_rewards_calculation_and_claim(
     Strategy,
     strategy,
     interface,
-    plugin_type,
+    pluginType,
     currency,
     compCurrency,
     comp_whale,
@@ -333,7 +333,7 @@ def test_rewards_calculation_and_claim(
 ):
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
-    plugin = plugin_type.at(strategy.lenders(0))
+    plugin = pluginType.at(strategy.lenders(0))
     gas_oracle.setMaxAcceptableBaseFee(10000 * 1e9, {"from": strategist_ms})
 
     currency.approve(vault, 2**256 - 1, {"from": whale})
@@ -374,7 +374,7 @@ def test_rewards_calculation_and_claim(
     chain.sleep(3600 * 24 * 100)
 
     # somebody else, not strategy, deposited to cToken to trigger rewards calculations
-    if plugin_type == EthCompound:
+    if pluginType == EthCompound:
         compCurrency.mint(10, {"from": whale})
     else:
         currency.approve(compCurrency, 2**256 - 1, {"from": whale})
@@ -394,8 +394,8 @@ def test_rewards_calculation_and_claim(
     assert rewardsBalance > pendingRewards and rewardsBalance < pendingRewards * 1.35
 
 
-def test_rewards_apr(strategy, plugin_type, currency):
-    plugin = plugin_type.at(strategy.lenders(0))
+def test_rewards_apr(strategy, pluginType, currency):
+    plugin = pluginType.at(strategy.lenders(0))
     # get apr in percentage (100 / 1e18)
     apr = plugin.getRewardAprForSupplyBase(0) / 1e16
     # for current apr visit compound website: https://v2-app.compound.finance/
