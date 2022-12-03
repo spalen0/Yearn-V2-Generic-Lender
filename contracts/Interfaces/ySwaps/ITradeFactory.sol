@@ -3,9 +3,7 @@
 pragma solidity >=0.6.12;
 
 interface ITradeFactory {
-    function enable(address _tokenIn, address _tokenOut) external;
-
-    function disable(address _tokenIn, address _tokenOut) external;
+    function enable(address, address) external;
 
     function grantRole(bytes32 role, address account) external;
 
