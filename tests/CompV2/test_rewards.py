@@ -20,10 +20,13 @@ def test_rewards(
     pluginType,
     currency,
     comp_whale,
+    gas_oracle,
+    strategist_ms,
 ):
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
     plugin = pluginType.at(strategy.lenders(0))
+    gas_oracle.setMaxAcceptableBaseFee(10000 * 1e9, {"from": strategist_ms})
 
     currency.approve(vault, 2**256 - 1, {"from": whale})
     currency.approve(vault, 2**256 - 1, {"from": strategist})
@@ -32,6 +35,9 @@ def test_rewards(
     debt_ratio = 10_000
     vault.addStrategy(strategy, debt_ratio, 0, 2**256 - 1, 500, {"from": gov})
     vault.setDepositLimit(deposit_limit, {"from": gov})
+
+    #Set uni fees
+    plugin.setUniFees(3000, 500, {"from": strategist})
 
     assert deposit_limit == vault.depositLimit()
     # our humble strategist deposits some test funds
@@ -143,13 +149,13 @@ def test_no_rewards(
     assert strategy.harvestTrigger(1000) == True
     assert plugin.harvestTrigger(10) == False
     chain.sleep(1)
+    # harvest should work without rewards
     tx = strategy.harvest({"from": strategist})
 
     comp = interface.ERC20(plugin.COMP())
 
     assert plugin.harvestTrigger(10) == False
     assert comp.balanceOf(plugin) == 0
-    assert plugin.getRewardAprForSupplyBase(0) == 0
 
     # should still be able to call harvest
     chain.sleep(1)
@@ -170,10 +176,13 @@ def test_trade_factory(
     weth,
     currency,
     comp_whale,
+    gas_oracle,
+    strategist_ms,
 ):
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
     plugin = pluginType.at(strategy.lenders(0))
+    gas_oracle.setMaxAcceptableBaseFee(10000 * 1e9, {"from": strategist_ms})
 
     currency.approve(vault, 2**256 - 1, {"from": whale})
     currency.approve(vault, 2**256 - 1, {"from": strategist})
@@ -234,7 +243,7 @@ def test_trade_factory(
     plugin.harvest({"from": gov})
 
     # nothing should have been sold because ySwap is set and not yet executed
-    assert comp.balanceOf(plugin.address) == toSend
+    assert comp.balanceOf(plugin.address) >= toSend
     token_in = comp
     token_out = currency
 
@@ -303,7 +312,8 @@ def test_trade_factory(
     vault.withdraw({"from": strategist})
 
 
-def test_rewards_claim(
+
+def test_rewards_calculation_and_claim(
     chain,
     whale,
     gov,
@@ -317,10 +327,14 @@ def test_rewards_claim(
     currency,
     compCurrency,
     comp_whale,
+    gas_oracle,
+    strategist_ms,
+    EthCompound,
 ):
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
     plugin = pluginType.at(strategy.lenders(0))
+    gas_oracle.setMaxAcceptableBaseFee(10000 * 1e9, {"from": strategist_ms})
 
     currency.approve(vault, 2**256 - 1, {"from": whale})
     currency.approve(vault, 2**256 - 1, {"from": strategist})
@@ -355,15 +369,38 @@ def test_rewards_claim(
     whale_deposit = 100_000 * (10 ** (decimals))
     vault.deposit(whale_deposit, {"from": whale})
     chain.sleep(1)
-    strategy.harvest({"from": strategist})
 
     # wait for rewards to accumulate
-    chain.sleep(3600 * 24 * 10)
-    plugin.getRewardsPending() > minCompToClaim
+    chain.sleep(3600 * 24 * 100)
+
+    # somebody else, not strategy, deposited to cToken to trigger rewards calculations
+    if pluginType == EthCompound:
+        compCurrency.mint(10, {"from": whale})
+    else:
+        currency.approve(compCurrency, 2**256 - 1, {"from": whale})
+        compCurrency.mint(10 * (10 ** (decimals)), {"from": whale})
+
+    pendingRewards = plugin.getRewardsPending()
+    assert pendingRewards > minCompToClaim
     assert plugin.harvestTrigger(10) == True
     plugin.harvest({"from": strategist})
 
-    # verify some reward tokens are claimed
-    plugin.getRewardsPending() == 0
+    # verify reward tokens are claimed
+    assert plugin.getRewardsPending() == 0
     comp = interface.ERC20(plugin.COMP())
-    assert comp.balanceOf(plugin.address) > minCompToClaim
+    # verify calculating pending rewards is ok
+    rewardsBalance = comp.balanceOf(plugin.address)
+    # ETH has higher difference between claimed(higher) and calculated(lower)
+    assert rewardsBalance > pendingRewards and rewardsBalance < pendingRewards * 1.35
+
+
+def test_rewards_apr(strategy, pluginType, currency):
+    plugin = pluginType.at(strategy.lenders(0))
+    # get apr in percentage (100 / 1e18)
+    apr = plugin.getRewardAprForSupplyBase(0) / 1e16
+    # for current apr visit compound website: https://v2-app.compound.finance/
+    if apr != 0:
+        assert apr < 1 # all rewards are less than 1%
+        assert apr > 0.1 # all rewards are higher than 0.1%
+        # supplying more capital should reward in small rewards
+        assert plugin.getRewardAprForSupplyBase(0) > plugin.getRewardAprForSupplyBase(10 ** currency.decimals())

@@ -7,9 +7,10 @@ import "../../Interfaces/Compound/CEtherI.sol";
 import "../../Interfaces/Compound/InterestRateModel.sol";
 import "../../Interfaces/Compound/ComptrollerI.sol";
 import "../../Interfaces/Compound/UniswapAnchoredViewI.sol";
-import "../../Interfaces/UniswapInterfaces/IUniswapV2Router02.sol";
+import "../../Interfaces/UniswapInterfaces/V3/ISwapRouter.sol";
 import "../../Interfaces/UniswapInterfaces/IWETH.sol";
 import "../../Interfaces/ySwaps/ITradeFactory.sol";
+import "../../Interfaces/utils/IBaseFee.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -26,10 +27,15 @@ contract EthCompound is GenericLenderBase {
     using Address for address;
     using SafeMath for uint256;
 
+    //Uniswap v3 router
+    ISwapRouter internal constant UNISWAP_ROUTER =
+        ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
+    //Fees for the V3 pools if the supply is incentivized
+    uint24 public compToEthFee;
+    uint24 public ethToWantFee;
+
     // eth blocks are mined every 12s -> 3600 * 24 * 365 / 12 = 2_628_000
     uint256 private constant BLOCKS_PER_YEAR = 2_628_000;
-    address public constant UNISWAP_ROUTER =
-        address(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
     address public constant COMP =
         address(0xc00e94Cb662C3520282E6f5717214004A7f26888);
     ComptrollerI public constant COMPTROLLER =
@@ -105,25 +111,28 @@ contract EthCompound is GenericLenderBase {
         view
         returns (uint256)
     {
+        // COMP issued per block to suppliers * (1 * 10 ^ 18)
+        uint256 compSpeedPerBlock = COMPTROLLER.compSupplySpeeds(address(C_ETH));
+        if (compSpeedPerBlock == 0) {
+            return 0;
+        }
+        // Approximate COMP issued per year to suppliers * (1 * 10 ^ 18)
+        uint256 compSpeedPerYear = compSpeedPerBlock * BLOCKS_PER_YEAR;
+
         // The price of the asset in USD as an unsigned integer scaled up by 10 ^ 6
         uint256 rewardTokenPriceInUsd = PRICE_FEED.price("COMP");
 
-        // The price of the asset in USD as an unsigned integer scaled up by 10 ^ (36 - underlying asset decimals)
-        uint256 wantPriceInUsd = PRICE_FEED.getUnderlyingPrice(address(C_ETH));
+        // The price of the asset in USD as an unsigned integer scaled up by 10 ^ (36 - 18(underlying asset decimals))
+        // upscale to price COMP percision 10 ^ 6
+        uint256 wantPriceInUsd = PRICE_FEED.getUnderlyingPrice(address(C_ETH)).div(10**12);
 
-        uint256 wantTotalSupply = C_ETH.totalSupply().add(newAmount);
+        // https://docs.compound.finance/v2/#protocol-math
+        // mantissa = 18 + 18(underlying decimals) - 8(cToken decimals) - 8(upscale) = 20
+        uint256 cTokenTotalSupplyInWant = C_ETH.totalSupply().mul(C_ETH.exchangeRateStored()).div(10**20);
 
-        // COMP issued per block to suppliers OR borrowers * (1 * 10 ^ 18)
-        uint256 compSpeed = COMPTROLLER.compSpeeds(address(C_ETH));
-        // Approximate COMP issued per year to suppliers OR borrowers * (1 * 10 ^ 18)
-        uint256 compSpeedPerYear = compSpeed * BLOCKS_PER_YEAR;
-        // result 1e18 = 1e6 * 1e12 * 1e18 / 1e18
-        uint256 supplyBaseRewardApr = rewardTokenPriceInUsd
-            .mul(1e12)
+        return rewardTokenPriceInUsd
             .mul(compSpeedPerYear)
-            .div(wantTotalSupply.mul(wantPriceInUsd));
-
-        return supplyBaseRewardApr;
+            .div(cTokenTotalSupplyInWant.add(newAmount).mul(wantPriceInUsd));
     }
 
     function weightedApr() external view override returns (uint256) {
@@ -148,6 +157,7 @@ contract EthCompound is GenericLenderBase {
     //withdraw an amount including any want balance
     function _withdraw(uint256 amount) internal returns (uint256) {
         // underlying balance is in want token, no need for additional conversion
+        // balanceOfUnderlying accrues interest in a transaction
         uint256 balanceUnderlying = C_ETH.balanceOfUnderlying(address(this));
         uint256 looseBalance = want.balanceOf(address(this));
         uint256 total = balanceUnderlying.add(looseBalance);
@@ -181,51 +191,67 @@ contract EthCompound is GenericLenderBase {
     }
 
     function _disposeOfComp() internal {
-        uint256 comp = IERC20(COMP).balanceOf(address(this));
+        uint256 compBalance = IERC20(COMP).balanceOf(address(this));
 
-        if (comp > minCompToSell) {
-            address[] memory path = new address[](2);
-            path[0] = COMP;
-            path[1] = address(want);
-
-            IUniswapV2Router02(UNISWAP_ROUTER).swapExactTokensForTokens(
-                comp,
-                uint256(0),
-                path,
-                address(this),
-                now
-            );
+        if (compBalance > minCompToSell) {
+            ISwapRouter.ExactInputSingleParams memory params =
+                ISwapRouter.ExactInputSingleParams(
+                    COMP, // tokenIn
+                    address(want), // tokenOut
+                    compToEthFee, // comp-eth fee
+                    address(this), // recipient
+                    now, // deadline
+                    compBalance, // amountIn
+                    0, // amountOut
+                    0 // sqrtPriceLimitX96
+                );
+            UNISWAP_ROUTER.exactInputSingle(params);
         }
     }
+
     /**
      * @notice Get pending COMP rewards for supplying want token
      * @return Amount of pending COMP tokens
      */
     function getRewardsPending() public view returns (uint256) {
-        return COMPTROLLER.compAccrued(address(this));
+        // https://github.com/compound-finance/compound-protocol/blob/master/contracts/Comptroller.sol#L1230
+        ComptrollerI.CompMarketState memory supplyState = COMPTROLLER.compSupplyState(address(C_ETH));
+        uint256 supplyIndex = supplyState.index;
+        uint256 supplierIndex = COMPTROLLER.compSupplierIndex(address(C_ETH), address(this));
+
+        // Calculate change in the cumulative sum of the COMP per cToken accrued
+        uint256 deltaIndex = supplyIndex.sub(supplierIndex);
+
+        // Calculate COMP accrued: cTokenAmount * accruedPerCToken / doubleScale
+        return C_ETH.balanceOf(address(this)).mul(deltaIndex).div(1e36);
     }
 
     /**
      * @notice Collect all pending COMP rewards for supplying want token
      */
-    function claimComp() public {
-        if (getRewardsPending() > minCompToClaim) {
-            CTokenI[] memory cTokens = new CTokenI[](1);
-            cTokens[0] = C_ETH;
-            address[] memory holders = new address[](1);
-            holders[0] = address(this);
+    function claimComp() external keepers {
+        _claimComp();
+    }
 
-            // Claim only rewards for lending to reduce the gas cost
-            COMPTROLLER.claimComp(holders, cTokens, false, true);
-        }
+    /**
+     * @notice Collect all pending COMP rewards for supplying want token
+     */
+    function _claimComp() public {
+        CTokenI[] memory cTokens = new CTokenI[](1);
+        cTokens[0] = C_ETH;
+        address[] memory holders = new address[](1);
+        holders[0] = address(this);
+
+        // Claim only rewards for lending to reduce the gas cost
+        COMPTROLLER.claimComp(holders, cTokens, false, true);
     }
 
     /**
      * @notice Collect rewards, dispose them for want token and supply to protocol
      */
     function harvest() external keepers {
-        claimComp();
-        if (tradeFactory == address(0)) {
+        _claimComp();
+        if (tradeFactory == address(0) && compToEthFee != 0) {
             _disposeOfComp();
         }
 
@@ -243,8 +269,8 @@ contract EthCompound is GenericLenderBase {
     function harvestTrigger(
         uint256 /*callCost*/
     ) external view returns (bool) {
-        if (getRewardsPending() > minCompToClaim) return true;
-        if (IERC20(COMP).balanceOf(address(this)) > minCompToSell) return true;
+        if (!isBaseFeeAcceptable()) return false;
+        if (IERC20(COMP).balanceOf(address(this)).add(getRewardsPending()) > minCompToClaim) return true;
     }
 
     function deposit() external override management {
@@ -259,6 +285,7 @@ contract EthCompound is GenericLenderBase {
      * @return Is more asset returned than invested
      */
     function withdrawAll() external override management returns (bool) {
+        C_ETH.accrueInterest();
         uint256 invested = _nav();
         uint256 returned = _withdraw(invested);
         return returned >= invested;
@@ -305,11 +332,23 @@ contract EthCompound is GenericLenderBase {
         override
         returns (address[] memory)
     {
-        address[] memory protected = new address[](3);
+        address[] memory protected = new address[](1);
         protected[0] = address(want);
-        protected[1] = address(C_ETH);
-        protected[2] = COMP;
         return protected;
+    }
+
+    // check if the current baseFee is below our external target
+    function isBaseFeeAcceptable() internal view returns (bool) {
+        return
+            IBaseFee(0xb5e1CAcB567d98faaDB60a1fD4820720141f064F)
+                .isCurrentBaseFeeAcceptable();
+    }
+
+    //These will default to 0.
+    //Will need to be manually set if want is incentized before any harvests
+    function setUniFees(uint24 _compToEth, uint24 _ethToWant) external management {
+        compToEthFee = _compToEth;
+        ethToWantFee = _ethToWant;
     }
 
     /**
