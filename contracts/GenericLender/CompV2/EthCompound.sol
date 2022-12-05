@@ -124,14 +124,13 @@ contract EthCompound is GenericLenderBase {
 
         // The price of the asset in USD as an unsigned integer scaled up by 10 ^ (36 - 18(underlying asset decimals))
         // upscale to price COMP percision 10 ^ 6
-        uint256 wantPriceInUsd = PRICE_FEED.getUnderlyingPrice(address(C_ETH)).div(10**12);
+        uint256 wantPriceInUsd = PRICE_FEED.getUnderlyingPrice(address(C_ETH)).div(1e12);
 
-        // https://docs.compound.finance/v2/#protocol-math
-        // mantissa = 18 + 18(underlying decimals) - 8(cToken decimals) - 8(upscale) = 20
-        uint256 cTokenTotalSupplyInWant = C_ETH.totalSupply().mul(C_ETH.exchangeRateStored()).div(10**20);
+        uint256 cTokenTotalSupplyInWant = C_ETH.totalSupply().mul(C_ETH.exchangeRateStored()).div(1e18);
 
         return rewardTokenPriceInUsd
             .mul(compSpeedPerYear)
+            .mul(1e18)
             .div(cTokenTotalSupplyInWant.add(newAmount).mul(wantPriceInUsd));
     }
 

@@ -399,8 +399,7 @@ def test_rewards_apr(strategy, pluginType, currency):
     # get apr in percentage (100 / 1e18)
     apr = plugin.getRewardAprForSupplyBase(0) / 1e16
     # for current apr visit compound website: https://v2-app.compound.finance/
-    if apr != 0:
-        assert apr < 1 # all rewards are less than 1%
-        assert apr > 0.1 # all rewards are higher than 0.1%
-        # supplying more capital should reward in small rewards
-        assert plugin.getRewardAprForSupplyBase(0) > plugin.getRewardAprForSupplyBase(10 ** currency.decimals())
+    assert apr < 1 # all rewards are less than 1%
+    assert apr > 0.1 # all rewards are higher than 0.1%
+    # supplying more capital should reward in small rewards
+    assert plugin.getRewardAprForSupplyBase(0) > plugin.getRewardAprForSupplyBase(100* 10 ** currency.decimals())

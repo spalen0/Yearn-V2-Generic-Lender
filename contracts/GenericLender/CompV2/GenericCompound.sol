@@ -165,13 +165,11 @@ contract GenericCompound is GenericLenderBase {
         uint256 wantPriceInUsd = PRICE_FEED.getUnderlyingPrice(address(cToken))
             .div(10**(30 - vault.decimals()));
 
-        // https://docs.compound.finance/v2/#protocol-math
-        // mantissa = 18 + vault.decimals(underlying decimals) - 8(cToken decimals) - 8(upscale)
-        uint256 cTokenTotalSupplyInWant = cToken.totalSupply().mul(cToken.exchangeRateStored())
-            .div(10**(2 + vault.decimals()));
+        uint256 cTokenTotalSupplyInWant = cToken.totalSupply().mul(cToken.exchangeRateStored()).div(1e18);
 
         return rewardTokenPriceInUsd
             .mul(compSpeedPerYear)
+            .mul(10**vault.decimals())
             .div(cTokenTotalSupplyInWant.add(newAmount).mul(wantPriceInUsd));
     }
 
