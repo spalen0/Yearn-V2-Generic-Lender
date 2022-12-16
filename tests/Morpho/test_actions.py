@@ -213,7 +213,7 @@ def test_debt_increase(
             f" {form.format(j[2]/1e18)}"
         )
 
-    assert realApr > predictedApr * 0.999 and realApr < predictedApr * 1.001
+    assert realApr > predictedApr * 0.995 and realApr < predictedApr * 1.001
 
     predictedApr = strategy.estimatedFutureAPR(firstDeposit * 2)
     print(
@@ -235,7 +235,7 @@ def test_debt_increase(
             f"Lender: {j[0]}, Deposits: {formS.format(j[1]/1e6)}, APR:"
             f" {form.format(j[2]/1e18)}"
         )
-    assert realApr > predictedApr * 0.999 and realApr < predictedApr * 1.001
+    assert realApr > predictedApr * 0.995 and realApr < predictedApr * 1.001
 
 
 def test_vault_shares(

@@ -2,32 +2,10 @@ import pytest
 from brownie import Wei, config, Contract
 
 
-@pytest.fixture
-def live_strat_usdc_1(Strategy):
-    yield Strategy.at("0x2216E44fA633ABd2540dB72Ad34b42C7F1557cd4")
-
-
-@pytest.fixture
-def live_vault_usdc(pm):
-    Vault = pm(config["dependencies"][0]).Vault
-    yield Vault.at("0xa354F35829Ae975e850e23e9615b11Da1B3dC4DE")
-
-
-@pytest.fixture
-def live_vault_usdt(pm):
-    Vault = pm(config["dependencies"][0]).Vault
-    vault = Vault.at("0xAf322a2eDf31490250fdEb0D712621484b09aBB6")
-    yield vault
-
-
 token_addresses = {
     "USDT": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
     "DAI": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
     "USDC": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
-    "LINK": "0x514910771AF9Ca656af840dff83E8264EcF986CA",
-    "UNI": "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984",
-    "AAVE": "0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9",
-    "TUSD": "0x0000000000085d4780B73119b644AE5ecd22b376",
     "WETH": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
 }
 
@@ -36,13 +14,9 @@ token_addresses = {
 @pytest.fixture(
     params=[
         "USDC",
-        # "USDT",
-        # "DAI",
-        # "LINK",
-        # "UNI",
-        # "AAVE",
-        # "TUSD",
-        # "WETH",
+        "USDT",
+        "DAI",
+        "WETH",
     ],
     scope="session",
     autouse=True,
@@ -74,10 +48,6 @@ whale_addresses = {
     "USDT": "0x47ac0Fb4F2D84898e4D9E7b4DaB3C24507a6D503",
     "DAI": "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7",
     "USDC": "0x0a59649758aa4d66e25f08dd01271e891fe52199",
-    "LINK": "0xf977814e90da44bfa03b6295a0616a897441acec",
-    "UNI": "0x4b4e140d1f131fdad6fb59c13af796fd194e4135",
-    "AAVE": "0x4da27a545c0c5b758a6ba100e3a049001de870f5",
-    "TUSD": "0xf977814e90da44bfa03b6295a0616a897441acec",
     "WETH": "0x2f0b23f53734252bda2277357e97e1517d6b042a",
 }
 
@@ -167,10 +137,6 @@ token_prices = {
     "USDT": 1,
     "USDC": 1,
     "DAI": 1,
-    "LINK": 8,
-    "UNI": 7,
-    "AAVE": 94,
-    "TUSD": 1,
     "WETH": 1_600,
 }
 

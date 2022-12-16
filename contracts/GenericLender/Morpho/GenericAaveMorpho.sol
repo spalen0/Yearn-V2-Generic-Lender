@@ -215,7 +215,9 @@ contract GenericAaveMorpho is GenericLenderBase {
         uint256 invested = _nav();
         // withdraw all
         MORPHO.withdraw(aToken, type(uint256).max);
-        return want.balanceOf(address(this)) >= invested;
+        uint256 wantBalance = want.balanceOf(address(this));
+        want.safeTransfer(address(strategy), wantBalance);
+        return wantBalance >= invested;
     }
 
     function hasAssets() external view override returns (bool) {
