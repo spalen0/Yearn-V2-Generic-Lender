@@ -37,9 +37,9 @@ contract GenericCompound is GenericLenderBase {
 
     // eth blocks are mined every 12s -> 3600 * 24 * 365 / 12 = 2_628_000
     uint256 private constant BLOCKS_PER_YEAR = 2_628_000;
-    address public constant COMP =
+    address internal constant COMP =
         address(0xc00e94Cb662C3520282E6f5717214004A7f26888);
-    address public constant WETH =
+    address internal constant WETH =
         address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     ComptrollerI public constant COMPTROLLER =
         ComptrollerI(0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B);
@@ -84,10 +84,10 @@ contract GenericCompound is GenericLenderBase {
         );
         cToken = CErc20I(_cToken);
         require(cToken.underlying() == address(want), "WRONG CTOKEN");
-        want.safeApprove(_cToken, uint256(-1));
+        want.safeApprove(_cToken, type(uint256).max);
         IERC20(COMP).safeApprove(address(UNISWAP_ROUTER), type(uint256).max);
         minCompToClaim = 1 ether;
-        minCompToSell = 1 ether;
+        minCompToSell = 10 ether;
         // setting dustThreshold is importmant! see values for each asset in conifgtest
     }
 

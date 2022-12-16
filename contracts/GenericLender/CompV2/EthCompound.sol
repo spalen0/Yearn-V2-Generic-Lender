@@ -32,7 +32,6 @@ contract EthCompound is GenericLenderBase {
         ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
     //Fees for the V3 pools if the supply is incentivized
     uint24 public compToEthFee;
-    uint24 public ethToWantFee;
 
     // eth blocks are mined every 12s -> 3600 * 24 * 365 / 12 = 2_628_000
     uint256 private constant BLOCKS_PER_YEAR = 2_628_000;
@@ -55,7 +54,8 @@ contract EthCompound is GenericLenderBase {
         require(address(want) == address(WETH), "NOT WETH");
         IERC20(COMP).safeApprove(address(UNISWAP_ROUTER), type(uint256).max);
         minCompToClaim = 1 ether;
-        minCompToSell = 1 ether;
+        minCompToSell = 10 ether;
+        compToEthFee = 3000;
         dustThreshold = 1e9;
     }
 
@@ -345,9 +345,8 @@ contract EthCompound is GenericLenderBase {
 
     //These will default to 0.
     //Will need to be manually set if want is incentized before any harvests
-    function setUniFees(uint24 _compToEth, uint24 _ethToWant) external management {
+    function setUniFees(uint24 _compToEth) external management {
         compToEthFee = _compToEth;
-        ethToWantFee = _ethToWant;
     }
 
     /**
