@@ -101,6 +101,11 @@ def comp_whale(accounts):
     yield accounts.at("0x5608169973d639649196a84ee4085a708bcbf397", force=True)
 
 
+@pytest.fixture
+def comp():
+    yield Contract("0xc00e94Cb662C3520282E6f5717214004A7f26888")
+
+
 @pytest.fixture()
 def strategist(accounts, whale, currency):
     decimals = currency.decimals()

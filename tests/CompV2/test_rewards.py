@@ -22,6 +22,8 @@ def test_rewards(
     comp_whale,
     gas_oracle,
     strategist_ms,
+    GenericCompound,
+    comp,
 ):
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
@@ -37,7 +39,10 @@ def test_rewards(
     vault.setDepositLimit(deposit_limit, {"from": gov})
 
     #Set uni fees
-    plugin.setUniFees(3000, 500, {"from": strategist})
+    if pluginType == GenericCompound:
+        plugin.setUniFees(3000, 500, {"from": strategist})
+    else:
+        plugin.setUniFees(3000, {"from": strategist})
 
     assert deposit_limit == vault.depositLimit()
     # our humble strategist deposits some test funds
@@ -68,7 +73,6 @@ def test_rewards(
     strategy.harvest({"from": strategist})
 
     # send some comp to the strategy
-    comp = interface.ERC20(plugin.COMP())
     toSend = 20 * (10 ** comp.decimals())
     comp.transfer(plugin.address, toSend, {"from": comp_whale})
     assert comp.balanceOf(plugin.address) == toSend
@@ -110,6 +114,7 @@ def test_no_rewards(
     strategy,
     pluginType,
     currency,
+    comp,
 ):
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
@@ -152,8 +157,6 @@ def test_no_rewards(
     # harvest should work without rewards
     tx = strategy.harvest({"from": strategist})
 
-    comp = interface.ERC20(plugin.COMP())
-
     assert plugin.harvestTrigger(10) == False
     assert comp.balanceOf(plugin) == 0
 
@@ -178,6 +181,7 @@ def test_trade_factory(
     comp_whale,
     gas_oracle,
     strategist_ms,
+    comp,
 ):
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
@@ -222,7 +226,6 @@ def test_trade_factory(
     strategy.harvest({"from": strategist})
 
     # send some comp to the strategy
-    comp = interface.ERC20(plugin.COMP())
     toSend = 10 * (10 ** comp.decimals())
     comp.transfer(plugin.address, toSend, {"from": comp_whale})
     assert comp.balanceOf(plugin.address) == toSend
@@ -312,7 +315,6 @@ def test_trade_factory(
     vault.withdraw({"from": strategist})
 
 
-
 def test_rewards_calculation_and_claim(
     chain,
     whale,
@@ -330,6 +332,7 @@ def test_rewards_calculation_and_claim(
     gas_oracle,
     strategist_ms,
     EthCompound,
+    comp,
 ):
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
@@ -387,7 +390,6 @@ def test_rewards_calculation_and_claim(
 
     # verify reward tokens are claimed
     assert plugin.getRewardsPending() == 0
-    comp = interface.ERC20(plugin.COMP())
     # verify calculating pending rewards is ok
     rewardsBalance = comp.balanceOf(plugin.address)
     # ETH has higher difference between claimed(higher) and calculated(lower)
