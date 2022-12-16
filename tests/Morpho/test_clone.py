@@ -17,6 +17,7 @@ def test_clone(
     GenericAaveMorpho,
     currency,
     pool_token,
+    amount,
 ):
     # Clone magic
     tx = strategy.clone(vault)
@@ -57,7 +58,7 @@ def test_clone(
 
     assert deposit_limit == vault.depositLimit()
     # our humble strategist deposits some test funds
-    depositAmount = 10_000 * (10 ** (decimals))
+    depositAmount = amount / 100
     vault.deposit(depositAmount, {"from": strategist})
 
     assert cloned_strategy.estimatedTotalAssets() == 0
@@ -73,7 +74,7 @@ def test_clone(
     assert cloned_strategy.harvestTrigger(1) == False
 
     # whale deposits as well
-    whale_deposit = 500_000 * (10 ** (decimals))
+    whale_deposit = amount / 10
     vault.deposit(whale_deposit, {"from": whale})
     chain.mine(1)
     assert cloned_strategy.harvestTrigger(1000) == True

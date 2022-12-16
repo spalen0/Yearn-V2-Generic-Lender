@@ -2,12 +2,12 @@
 pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
-import "../GenericLenderBase.sol";
-import "../../Interfaces/Morpho/IMorpho.sol";
-import "../../Interfaces/Morpho/IRewardsDistributor.sol";
-import "../../Interfaces/Morpho/ILens.sol";
-import "../../Interfaces/ySwaps/ITradeFactory.sol";
-import "../../Interfaces/utils/IBaseFee.sol";
+import "./GenericLenderBase.sol";
+import "../Interfaces/Morpho/IMorpho.sol";
+import "../Interfaces/Morpho/IRewardsDistributor.sol";
+import "../Interfaces/Morpho/ILens.sol";
+import "../Interfaces/ySwaps/ITradeFactory.sol";
+import "../Interfaces/utils/IBaseFee.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
