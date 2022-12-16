@@ -7,7 +7,6 @@ import "../Interfaces/Morpho/IMorpho.sol";
 import "../Interfaces/Morpho/IRewardsDistributor.sol";
 import "../Interfaces/Morpho/ILens.sol";
 import "../Interfaces/ySwaps/ITradeFactory.sol";
-import "../Interfaces/utils/IBaseFee.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -185,17 +184,6 @@ contract GenericAaveMorpho is GenericLenderBase {
     }
 
     /**
-     * @notice Checks if the harvest should be called
-     * @return Should call harvest function
-     */
-    function harvestTrigger(
-        uint256 /*callCost*/
-    ) external view returns (bool) {
-        if (!isBaseFeeAcceptable()) return false;
-        // TODO: harvest is not needed!
-    }
-
-    /**
      * @notice Supplies free want balance to compound
      */
     function deposit() external override management {
@@ -255,13 +243,6 @@ contract GenericAaveMorpho is GenericLenderBase {
         address[] memory protected = new address[](1);
         protected[0] = address(want);
         return protected;
-    }
-
-    // check if the current baseFee is below our external target
-    function isBaseFeeAcceptable() internal view returns (bool) {
-        return
-            IBaseFee(0xb5e1CAcB567d98faaDB60a1fD4820720141f064F)
-                .isCurrentBaseFeeAcceptable();
     }
 
     /**

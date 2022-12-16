@@ -89,7 +89,6 @@ def test_normal_activity(
 
     assert strategy.estimatedTotalAssets() == 0
     chain.mine(1)
-    # assert strategy.harvestTrigger(1) == True
 
     chain.sleep(1)
     strategy.harvest({"from": strategist})
@@ -98,12 +97,9 @@ def test_normal_activity(
         strategy.estimatedTotalAssets() >= depositAmount * 0.999999
     )  # losing some dust is ok
 
-    # assert strategy.harvestTrigger(1) == False
-
     # whale deposits as well
     whale_deposit = amount
     vault.deposit(whale_deposit, {"from": whale})
-    # assert strategy.harvestTrigger(1000) == True
 
     chain.sleep(1)
     strategy.harvest({"from": strategist})

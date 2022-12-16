@@ -63,7 +63,6 @@ def test_clone(
 
     assert cloned_strategy.estimatedTotalAssets() == 0
     chain.mine(1)
-    assert cloned_strategy.harvestTrigger(1) == True
 
     tx = cloned_strategy.harvest({"from": strategist})
 
@@ -71,13 +70,10 @@ def test_clone(
         cloned_strategy.estimatedTotalAssets() >= depositAmount * 0.999999
     )  # losing some dust is ok
 
-    assert cloned_strategy.harvestTrigger(1) == False
-
     # whale deposits as well
     whale_deposit = amount / 10
     vault.deposit(whale_deposit, {"from": whale})
     chain.mine(1)
-    assert cloned_strategy.harvestTrigger(1000) == True
 
     tx2 = cloned_strategy.harvest({"from": strategist})
 
