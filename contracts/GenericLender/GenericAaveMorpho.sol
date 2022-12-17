@@ -145,7 +145,8 @@ contract GenericAaveMorpho is GenericLenderBase {
         if (amount > total) {
             // cant withdraw more than we own
             amount = total;
-        } else if (looseBalance >= amount) {
+        } 
+        if (looseBalance >= amount) {
             want.safeTransfer(address(strategy), amount);
             return amount;
         }
