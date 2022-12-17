@@ -14,11 +14,11 @@ token_addresses = {
 # TODO: uncomment those tokens you want to test as want
 @pytest.fixture(
     params=[
-        # "USDC",
-        # "USDT",
+        "USDC",
+        "USDT",
         "DAI",
-        # "WETH",
-        # "WBTC"
+        "WETH",
+        "WBTC"
     ],
     scope="session",
     autouse=True,

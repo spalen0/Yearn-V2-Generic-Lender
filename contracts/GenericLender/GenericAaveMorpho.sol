@@ -20,10 +20,10 @@ contract GenericAaveMorpho is GenericLenderBase {
     using SafeMath for uint256;
 
     // Morpho is a contract to handle interaction with the protocol
-    IMorpho public constant MORPHO = IMorpho(0x777777c9898D384F785Ee44Acfe945efDFf5f3E0);
+    IMorpho internal constant MORPHO = IMorpho(0x777777c9898D384F785Ee44Acfe945efDFf5f3E0);
     // Lens is a contract to fetch data about Morpho protocol
-    ILens public constant LENS = ILens(0x507fA343d0A90786d86C7cd885f5C49263A91FF4);
-    address public constant MORPHO_TOKEN = 0x9994E35Db50125E0DF82e4c2dde62496CE330999;
+    ILens internal constant LENS = ILens(0x507fA343d0A90786d86C7cd885f5C49263A91FF4);
+    address internal constant MORPHO_TOKEN = 0x9994E35Db50125E0DF82e4c2dde62496CE330999;
     address public rewardsDistributor;
     // aToken = Morpho Aave Market for want token
     address public aToken;
@@ -130,15 +130,11 @@ contract GenericAaveMorpho is GenericLenderBase {
         override
         onlyGovernance
     {
-        // withdraw all
-        // MORPHO.withdraw(aToken, type(uint256).max);
         _withdraw(amount);
-
         want.safeTransfer(vault.governance(), want.balanceOf(address(this)));
     }
 
     function _withdraw(uint256 amount) internal returns (uint256) {
-        // underlying balance is in want token, no need for additional conversion
         uint256 balanceUnderlying = underlyingBalance();
         uint256 looseBalance = want.balanceOf(address(this));
         uint256 total = balanceUnderlying.add(looseBalance);
@@ -146,9 +142,7 @@ contract GenericAaveMorpho is GenericLenderBase {
         if (amount > total) {
             // cant withdraw more than we own
             amount = total;
-        }
-
-        if (looseBalance >= amount) {
+        } else if (looseBalance >= amount) {
             want.safeTransfer(address(strategy), amount);
             return amount;
         }
@@ -273,8 +267,7 @@ contract GenericAaveMorpho is GenericLenderBase {
     }
 
     /**
-     * @notice
-     *  Claims MORPHO rewards. Use Morpho API to get the data: https://api.morpho.xyz/rewards/{address}
+     * @notice Claims MORPHO rewards. Use Morpho API to get the data: https://api.morpho.xyz/rewards/{address}
      * @dev See stages of Morpho rewards distibution: https://docs.morpho.xyz/usdmorpho/ages-and-epochs/age-2
      * @param _account The address of the claimer.
      * @param _claimable The overall claimable amount of token rewards.
