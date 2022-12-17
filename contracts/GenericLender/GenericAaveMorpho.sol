@@ -23,7 +23,9 @@ contract GenericAaveMorpho is GenericLenderBase {
     IMorpho internal constant MORPHO = IMorpho(0x777777c9898D384F785Ee44Acfe945efDFf5f3E0);
     // Lens is a contract to fetch data about Morpho protocol
     ILens internal constant LENS = ILens(0x507fA343d0A90786d86C7cd885f5C49263A91FF4);
+    // reward token, not currently listed
     address internal constant MORPHO_TOKEN = 0x9994E35Db50125E0DF82e4c2dde62496CE330999;
+    // used for claiming reward Morpho token
     address public rewardsDistributor;
     // aToken = Morpho Aave Market for want token
     address public aToken;
@@ -65,6 +67,7 @@ contract GenericAaveMorpho is GenericLenderBase {
         IMorpho.Market memory market = MORPHO.market(aToken);
         require(market.underlyingToken == address(want), "WRONG CTOKEN");
         want.safeApprove(address(MORPHO), type(uint256).max);
+        // 100000 is the default value set by Morpho
         maxGasForMatching = 100000;
         rewardsDistributor = 0x3B14E5C73e0A56D607A8688098326fD4b4292135;
     }
@@ -147,7 +150,8 @@ contract GenericAaveMorpho is GenericLenderBase {
             return amount;
         }
 
-        uint256 toWithdraw = amount.sub(looseBalance);
+        // no fear of overflow
+        uint256 toWithdraw = amount - looseBalance;
         if (toWithdraw > balanceUnderlying) {
             // withdraw all
             MORPHO.withdraw(aToken, type(uint256).max);
@@ -240,13 +244,13 @@ contract GenericAaveMorpho is GenericLenderBase {
     }
 
     /**
-     * @notice
-     *  Set the maximum amount of gas to consume to get matched in peer-to-peer.
+     * @notice Set the maximum amount of gas to consume to get matched in peer-to-peer.
      * @dev
      *  This value is needed in morpho supply liquidity calls.
      *  Supplyed liquidity goes to loop with current loans on Compound
      *  and creates a match for p2p deals. The loop starts from bigger liquidity deals.
-     * @param _maxGasForMatching new maximum gas value for
+     *  The default value set by Morpho is 100000.
+     * @param _maxGasForMatching new maximum gas value for P2P matching
      */
     function setMaxGasForMatching(uint256 _maxGasForMatching)
         external
