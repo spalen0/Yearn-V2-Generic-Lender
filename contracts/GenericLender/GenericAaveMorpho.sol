@@ -94,7 +94,7 @@ contract GenericAaveMorpho is GenericLenderBase {
      * @return balance in want token value
      */
     function underlyingBalance() public view returns (uint256 balance) {
-        (, , balance) = LENS.getCurrentSupplyBalanceInOf(aToken,address(this));
+        (, , balance) = LENS.getCurrentSupplyBalanceInOf(aToken, address(this));
     }
 
     function apr() external view override returns (uint256) {

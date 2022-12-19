@@ -8,6 +8,7 @@ interface ILens {
         address _user
     ) external view returns (uint256 unclaimedRewards);
 
+    // only for Aave, Compound has different order of return values
     function getCurrentSupplyBalanceInOf(
         address _poolTokenAddress,
         address _user
@@ -15,8 +16,8 @@ interface ILens {
         external
         view
         returns (
-            uint256 balanceOnPool,
             uint256 balanceInP2P,
+            uint256 balanceOnPool,
             uint256 totalBalance
         );
 
