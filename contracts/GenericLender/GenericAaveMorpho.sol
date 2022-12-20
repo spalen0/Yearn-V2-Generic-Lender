@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.6.12;
+pragma solidity >=0.6.12;
 pragma experimental ABIEncoderV2;
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import "./GenericLenderBase.sol";
 import "../Interfaces/Morpho/IMorpho.sol";
@@ -8,11 +13,12 @@ import "../Interfaces/Morpho/IRewardsDistributor.sol";
 import "../Interfaces/Morpho/ILens.sol";
 import "../Interfaces/ySwaps/ITradeFactory.sol";
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/utils/Address.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-
+/********************
+ *   A lender plugin for LenderYieldOptimiser for any borrowable erc20 asset on Morpho-Aave
+ *   Made by @spalen0
+ *   https://github.com/spalen0/Yearn-V2-Generic-Lender/blob/main/contracts/GenericLender/GenericAaveMorpho.sol
+ *
+ ********************* */
 
 contract GenericAaveMorpho is GenericLenderBase {
     using SafeERC20 for IERC20;
@@ -61,7 +67,7 @@ contract GenericAaveMorpho is GenericLenderBase {
     function _initialize(address _aToken) internal {
         require(
             address(aToken) == address(0),
-            "GenericCompound already initialized"
+            "GenericAaveMorpho already initialized"
         );
         aToken = _aToken;
         IMorpho.Market memory market = MORPHO.market(aToken);
@@ -90,7 +96,7 @@ contract GenericAaveMorpho is GenericLenderBase {
     }
 
     /**
-     * @notice Returns the value deposited in Compound protocol
+     * @notice Returns the value deposited in Morpho protocol
      * @return balance in want token value
      */
     function underlyingBalance() public view returns (uint256 balance) {
@@ -115,24 +121,15 @@ contract GenericAaveMorpho is GenericLenderBase {
         return a.mul(_nav());
     }
 
-    function withdraw(uint256 amount)
-        external
-        override
-        management
-        returns (uint256)
-    {
+    function withdraw(uint256 amount) external override management returns (uint256) {
         return _withdraw(amount);
     }
 
     /**
-     * @notice Withdraws the specified amount from Compound along with all free want tokens.
-     * @param amount to withdraw from Compound, defined in want token value
+     * @notice Withdraws the specified amount from Morpho along with all free want tokens.
+     * @param amount to withdraw from Morpho, defined in want token value
      */
-    function emergencyWithdraw(uint256 amount)
-        external
-        override
-        onlyGovernance
-    {
+    function emergencyWithdraw(uint256 amount) external override onlyGovernance {
         _withdraw(amount);
         want.safeTransfer(vault.governance(), want.balanceOf(address(this)));
     }
@@ -151,7 +148,7 @@ contract GenericAaveMorpho is GenericLenderBase {
             return amount;
         }
 
-        // no fear of overflow
+        // no fear of underflow
         uint256 toWithdraw = amount - looseBalance;
         if (toWithdraw > balanceUnderlying) {
             // withdraw all
@@ -183,7 +180,7 @@ contract GenericAaveMorpho is GenericLenderBase {
     }
 
     /**
-     * @notice Supplies free want balance to compound
+     * @notice Supplies free want balance to Morpho
      */
     function deposit() external override management {
         MORPHO.supply(
@@ -195,7 +192,7 @@ contract GenericAaveMorpho is GenericLenderBase {
     }
 
     /**
-     * @notice Withdraws asset form compound
+     * @notice Withdraws asset form Morpho
      * @return Is more asset returned than invested
      */
     function withdrawAll() external override management returns (bool) {
@@ -218,12 +215,7 @@ contract GenericAaveMorpho is GenericLenderBase {
      * @param amount to supply
      * @return New lender APR after supplying given amount
      */
-    function aprAfterDeposit(uint256 amount)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function aprAfterDeposit(uint256 amount) external view override returns (uint256) {
         // RAY(1e27)
         uint256 nextSupplyRatePerYearInRay;
         // simulated supply rate is a lower bound 
@@ -233,12 +225,7 @@ contract GenericAaveMorpho is GenericLenderBase {
         return nextSupplyRatePerYearInRay.div(1e9);
     }
 
-    function protectedTokens()
-        internal
-        view
-        override
-        returns (address[] memory)
-    {
+    function protectedTokens() internal view override returns (address[] memory) {
         address[] memory protected = new address[](1);
         protected[0] = address(want);
         return protected;
@@ -247,8 +234,8 @@ contract GenericAaveMorpho is GenericLenderBase {
     /**
      * @notice Set the maximum amount of gas to consume to get matched in peer-to-peer.
      * @dev
-     *  This value is needed in morpho supply liquidity calls.
-     *  Supplyed liquidity goes to loop with current loans on Compound
+     *  This value is needed in Morpho supply liquidity calls.
+     *  Supplyed liquidity goes to loop with current loans on Morpho
      *  and creates a match for p2p deals. The loop starts from bigger liquidity deals.
      *  The default value set by Morpho is 100000.
      * @param _maxGasForMatching new maximum gas value for P2P matching
@@ -314,7 +301,7 @@ contract GenericAaveMorpho is GenericLenderBase {
 
     function _removeTradeFactoryPermissions() internal {
         IERC20(MORPHO_TOKEN).safeApprove(tradeFactory, 0);
-        
+        ITradeFactory(tradeFactory).disable(MORPHO_TOKEN, address(want));
         tradeFactory = address(0);
     }
 }
