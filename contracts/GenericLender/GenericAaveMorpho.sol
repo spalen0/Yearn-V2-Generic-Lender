@@ -9,6 +9,8 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import "./GenericLenderBase.sol";
+import "../Interfaces/Aave/IProtocolDataProvider.sol";
+import "../Interfaces/Aave/IReserveInterestRateStrategy.sol";
 import "../Interfaces/Morpho/IMorpho.sol";
 import "../Interfaces/Morpho/IRewardsDistributor.sol";
 import "../Interfaces/Morpho/ILens.sol";
@@ -26,6 +28,9 @@ contract GenericAaveMorpho is GenericLenderBase {
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
+
+    ILendingPoolAave internal pool = ILendingPoolAave(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);
+    IProtocolDataProvider internal protocolDataProvider = IProtocolDataProvider(0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d);
 
     // Morpho is a contract to handle interaction with the protocol
     IMorpho internal constant MORPHO = IMorpho(0x777777c9898D384F785Ee44Acfe945efDFf5f3E0);
@@ -265,20 +270,38 @@ contract GenericAaveMorpho is GenericLenderBase {
                 supplyBalance.inP2P = supplyBalance.inP2P.add(rayDiv(matchedP2P, indexes.p2pSupplyIndex));
                 _amount = _amount.sub(matchedP2P);
             }
+            // we could add more p2p matching here, not just first head
         }
 
         if (_amount > 0) supplyBalance.onPool = supplyBalance.onPool.add(rayDiv(_amount, indexes.poolSupplyIndex));
 
-        uint256 balanceOnPool = rayMul(supplyBalance.onPool, indexes.poolSupplyIndex);
-        uint256 balanceInP2P = rayMul(supplyBalance.inP2P, indexes.p2pSupplyIndex);
+        IMorpho.SupplyBalance memory startBalance = MORPHO.supplyBalanceInOf(aToken, address(this));
+        (uint256 poolSupplyRate, uint256 variableBorrowRate) = getAaveRates(supplyBalance.onPool - startBalance.onPool);
 
-        (uint256 nextSupplyRatePerYearInRay, ) = _getUserSupplyRatePerYear(
-            balanceInP2P,
-            balanceOnPool
+        uint256 p2pSupplyRate = computeP2PSupplyRatePerYear(
+            P2PRateComputeParams({
+                poolSupplyRatePerYear: poolSupplyRate,
+                poolBorrowRatePerYear: variableBorrowRate,
+                poolIndex: indexes.poolSupplyIndex,
+                p2pIndex: indexes.p2pSupplyIndex,
+                p2pDelta: delta.p2pSupplyDelta,
+                p2pAmount: delta.p2pSupplyAmount.add(supplyBalance.inP2P - startBalance.inP2P),
+                p2pIndexCursor: market.p2pIndexCursor,
+                reserveFactor: market.reserveFactor
+            })
         );
 
+        uint256 balanceOnPool = rayMul(supplyBalance.onPool, indexes.poolSupplyIndex);
+        uint256 balanceInP2P = rayMul(supplyBalance.inP2P, indexes.p2pSupplyIndex);
+        (uint256 weightedRate, ) = getWeightedRate(
+                p2pSupplyRate,
+                poolSupplyRate,
+                balanceInP2P,
+                balanceOnPool
+            );
+
         // downscale to WAD(1e18)
-        return nextSupplyRatePerYearInRay.div(1e9);
+        return weightedRate.div(1e9);
     }
 
     function protectedTokens() internal view override returns (address[] memory) {
@@ -362,22 +385,6 @@ contract GenericAaveMorpho is GenericLenderBase {
     }
 
     // ********* MORPHO RATES *********
-    function _getUserSupplyRatePerYear(
-        uint256 _balanceInP2P,
-        uint256 _balanceOnPool
-    ) internal view returns (uint256, uint256) {
-        (uint256 p2pSupplyRatePerYear, uint256 poolSupplyRatePerYear) = getRatesPerYear(
-            aToken, _balanceInP2P, _balanceOnPool
-        );
-
-        return
-            _getWeightedRate(
-                p2pSupplyRatePerYear,
-                poolSupplyRatePerYear,
-                _balanceInP2P,
-                _balanceOnPool
-            );
-    }
 
     /// @dev Returns the rate experienced based on a given pool & peer-to-peer distribution.
     /// @param _p2pRate The peer-to-peer rate (in a unit common to `_poolRate` & `weightedRate`).
@@ -386,7 +393,7 @@ contract GenericAaveMorpho is GenericLenderBase {
     /// @param _balanceOnPool The amount of balance supplied on pool (in a unit common to `_balanceInP2P`).
     /// @return weightedRate The rate experienced by the given distribution (in a unit common to `_p2pRate` & `_poolRate`).
     /// @return totalBalance The sum of peer-to-peer & pool balances.
-    function _getWeightedRate(
+    function getWeightedRate(
         uint256 _p2pRate,
         uint256 _poolRate,
         uint256 _balanceInP2P,
@@ -400,44 +407,21 @@ contract GenericAaveMorpho is GenericLenderBase {
             weightedRate = weightedRate.add(rayMul(_poolRate, rayDiv(_balanceOnPool, totalBalance)));
     }
 
-    /// @notice Computes and returns peer-to-peer and pool rates for a specific market.
-    /// @dev Note: prefer using getAverageSupplyRatePerYear & getAverageBorrowRatePerYear to get the actual experienced supply/borrow rate.
-    /// @param _poolToken The market address.
-    /// @param _balanceInP2P Amount added to P2P.
-    /// @param _balanceOnPool Amount added to pool.
-    /// @return p2pSupplyRate The market's peer-to-peer supply rate per year (in ray).
-    /// @return poolSupplyRate The market's pool supply rate per year (in ray).
-    function getRatesPerYear(address _poolToken, uint256 _balanceInP2P, uint256 _balanceOnPool)
-        internal
-        view
-        returns (
-            uint256 p2pSupplyRate,
-            uint256 poolSupplyRate
-        )
-    {
-        ILens.Indexes memory indexes = LENS.getIndexes(aToken);
-        IMorpho.Market memory market = MORPHO.market(aToken);
-        IMorpho.Delta memory delta = MORPHO.deltas(aToken);
+    function getAaveRates(uint256 amount) private view returns (uint256 supplyRate, uint256 variableBorrowRate) {
+        ILendingPoolAave.ReserveData memory reserve = pool.getReserveData(address(want));
+        (uint256 availableLiquidity, uint256 totalStableDebt, uint256 totalVariableDebt, , , , uint256 averageStableBorrowRate, , , ) =
+            protocolDataProvider.getReserveData(address(want));
+        (, , , , uint256 reserveFactor, , , , , ) = protocolDataProvider.getReserveConfigurationData(address(want));
 
-        ILendingPoolAave pool = ILendingPoolAave(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);
-        ILendingPoolAave.ReserveData memory reserve = pool.getReserveData(market.underlyingToken);
-        // TODO: add pool amount to caluclation if _balanceOnPool > 0
-        // check if _balanceOnPool is whole balance in pool, or new balance in pool
-        poolSupplyRate = reserve.currentLiquidityRate;
-        uint256 poolBorrowRate = reserve.currentVariableBorrowRate;
-
-        p2pSupplyRate = computeP2PSupplyRatePerYear(
-            P2PRateComputeParams({
-                poolSupplyRatePerYear: poolSupplyRate,
-                poolBorrowRatePerYear: poolBorrowRate,
-                poolIndex: indexes.poolSupplyIndex,
-                p2pIndex: indexes.p2pSupplyIndex,
-                p2pDelta: delta.p2pSupplyDelta,
-                p2pAmount: delta.p2pSupplyAmount.add(_balanceInP2P), // TODO: check if this add is correct spot
-                p2pIndexCursor: market.p2pIndexCursor,
-                reserveFactor: market.reserveFactor
-            })
-        );
+        (supplyRate, , variableBorrowRate) =
+            IReserveInterestRateStrategy(reserve.interestRateStrategyAddress).calculateInterestRates(
+                address(want),
+                availableLiquidity.add(amount),
+                totalStableDebt,
+                totalVariableDebt,
+                averageStableBorrowRate,
+                reserveFactor
+            );
     }
 
     struct P2PRateComputeParams {
@@ -472,6 +456,7 @@ contract GenericAaveMorpho is GenericLenderBase {
                 p2pRate.sub(percentMul((p2pRate.sub(_params.poolSupplyRatePerYear)), _params.reserveFactor));
         }
 
+        // TODO: problem is that we alway have p2pDelta = 0 !!!
         if (_params.p2pDelta > 0 && _params.p2pAmount > 0) {
             uint256 shareOfTheDelta = Math.min(
                 rayDiv(

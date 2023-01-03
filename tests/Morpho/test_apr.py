@@ -13,7 +13,11 @@ def test_apr(
     strategy,
     currency,
     amount,
+    GenericAaveMorpho,
 ):
+    # plugin to check additional functions
+    plugin = GenericAaveMorpho.at(strategy.lenders(0))
+
     decimals = currency.decimals()
     currency.approve(vault, 2**256 - 1, {"from": whale})
 
@@ -31,7 +35,7 @@ def test_apr(
     )
     vault.deposit(firstDeposit, {"from": whale})
     print("Deposit: ", formS.format(firstDeposit / 1e6))
-    chain.sleep(12 * 3600)
+    chain.sleep(1)
     strategy.harvest({"from": strategist})
     realApr = strategy.estimatedAPR()
     print("Current APR: ", form.format(realApr / 1e18))
@@ -43,7 +47,7 @@ def test_apr(
             f" {form.format(j[2]/1e18)}"
         )
 
-    assert realApr > predictedApr * 0.995 and realApr < predictedApr
+    assert realApr > predictedApr * 0.999 and realApr < predictedApr * 1.001
 
     predictedApr = strategy.estimatedFutureAPR(firstDeposit * 2)
     print(
@@ -53,7 +57,7 @@ def test_apr(
     print("Deposit: ", formS.format(firstDeposit / 1e6))
     vault.deposit(firstDeposit, {"from": whale})
 
-    chain.sleep(12 * 3600)
+    chain.sleep(1)
     strategy.harvest({"from": strategist})
     realApr = strategy.estimatedAPR()
 
@@ -65,4 +69,4 @@ def test_apr(
             f"Lender: {j[0]}, Deposits: {formS.format(j[1]/1e6)}, APR:"
             f" {form.format(j[2]/1e18)}"
         )
-    assert realApr > predictedApr * 0.995 and realApr < predictedApr
+    assert realApr > predictedApr * 0.999 and realApr < predictedApr * 1.001
