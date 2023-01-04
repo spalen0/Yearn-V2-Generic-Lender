@@ -29,6 +29,7 @@ def test_apr(
     formS = "{:,.0f}"
     firstDeposit = amount
     predictedApr = strategy.estimatedFutureAPR(firstDeposit)
+    tx = strategy.estimatedFutureAPR.transact(firstDeposit, {"from": gov})
     print(
         f"Predicted APR from {formS.format(firstDeposit/1e6)} deposit:"
         f" {form.format(predictedApr/1e18)}"
@@ -50,6 +51,7 @@ def test_apr(
     assert realApr > predictedApr * 0.999 and realApr < predictedApr * 1.001
 
     predictedApr = strategy.estimatedFutureAPR(firstDeposit * 2)
+    tx2 = strategy.estimatedFutureAPR.transact(firstDeposit * 2, {"from": gov})
     print(
         f"\nPredicted APR from {formS.format(firstDeposit/1e6)} deposit:"
         f" {form.format(predictedApr/1e18)}"

@@ -9,12 +9,15 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import "./GenericLenderBase.sol";
+import "../Interfaces/Aave/ILendingPool.sol";
 import "../Interfaces/Aave/IProtocolDataProvider.sol";
 import "../Interfaces/Aave/IReserveInterestRateStrategy.sol";
+import "../Libraries/Aave/DataTypes.sol";
+import "../Libraries/Morpho/WadRayMath.sol";
+import "../Libraries/Morpho/PercentageMath.sol";
 import "../Interfaces/Morpho/IMorpho.sol";
 import "../Interfaces/Morpho/IRewardsDistributor.sol";
 import "../Interfaces/Morpho/ILens.sol";
-import "../Interfaces/Morpho/ILendingPoolAave.sol";
 import "../Interfaces/ySwaps/ITradeFactory.sol";
 
 /********************
@@ -29,7 +32,7 @@ contract GenericAaveMorpho is GenericLenderBase {
     using Address for address;
     using SafeMath for uint256;
 
-    ILendingPoolAave internal pool = ILendingPoolAave(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);
+    ILendingPool internal pool = ILendingPool(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);
     IProtocolDataProvider internal protocolDataProvider = IProtocolDataProvider(0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d);
 
     // Morpho is a contract to handle interaction with the protocol
@@ -245,11 +248,11 @@ contract GenericAaveMorpho is GenericLenderBase {
         IMorpho.SupplyBalance memory supplyBalance = MORPHO.supplyBalanceInOf(aToken, address(this));
         if (_amount > 0 && delta.p2pBorrowDelta > 0) {
             uint256 matchedDelta = Math.min(
-                rayMul(delta.p2pBorrowDelta, indexes.poolBorrowIndex),
+                WadRayMath.rayMul(delta.p2pBorrowDelta, indexes.poolBorrowIndex),
                 _amount
             );
 
-            supplyBalance.inP2P = supplyBalance.inP2P.add(rayDiv(matchedDelta, indexes.p2pSupplyIndex));
+            supplyBalance.inP2P = supplyBalance.inP2P.add(WadRayMath.rayDiv(matchedDelta, indexes.p2pSupplyIndex));
             _amount = _amount.sub(matchedDelta);
         }
 
@@ -264,20 +267,20 @@ contract GenericAaveMorpho is GenericLenderBase {
 
             if (firstPoolBorrowerBalance > 0) {
                 uint256 matchedP2P = Math.min(
-                    rayMul(firstPoolBorrowerBalance, indexes.poolBorrowIndex),
+                    WadRayMath.rayMul(firstPoolBorrowerBalance, indexes.poolBorrowIndex),
                     _amount
                 );
 
-                supplyBalance.inP2P = supplyBalance.inP2P.add(rayDiv(matchedP2P, indexes.p2pSupplyIndex));
+                supplyBalance.inP2P = supplyBalance.inP2P.add(WadRayMath.rayDiv(matchedP2P, indexes.p2pSupplyIndex));
                 _amount = _amount.sub(matchedP2P);
             }
             // we could add more p2p matching here, not just first head
         }
 
-        if (_amount > 0) supplyBalance.onPool = supplyBalance.onPool.add(rayDiv(_amount, indexes.poolSupplyIndex));
+        if (_amount > 0) supplyBalance.onPool = supplyBalance.onPool.add(WadRayMath.rayDiv(_amount, indexes.poolSupplyIndex));
 
         (uint256 poolSupplyRate, uint256 variableBorrowRate) = 
-            getAaveRates(rayMul(supplyBalance.onPool - startBalance.onPool, indexes.poolSupplyIndex));
+            getAaveRates(WadRayMath.rayMul(supplyBalance.onPool - startBalance.onPool, indexes.poolSupplyIndex));
 
         uint256 p2pSupplyRate = computeP2PSupplyRatePerYear(
             P2PRateComputeParams({
@@ -295,8 +298,8 @@ contract GenericAaveMorpho is GenericLenderBase {
         (uint256 weightedRate, ) = getWeightedRate(
                 p2pSupplyRate,
                 poolSupplyRate,
-                rayMul(supplyBalance.inP2P, indexes.p2pSupplyIndex),
-                rayMul(supplyBalance.onPool, indexes.poolSupplyIndex)
+                WadRayMath.rayMul(supplyBalance.inP2P, indexes.p2pSupplyIndex),
+                WadRayMath.rayMul(supplyBalance.onPool, indexes.poolSupplyIndex)
             );
 
         // downscale to WAD(1e18)
@@ -401,13 +404,13 @@ contract GenericAaveMorpho is GenericLenderBase {
         totalBalance = _balanceInP2P.add(_balanceOnPool);
         if (totalBalance == 0) return (weightedRate, totalBalance);
 
-        if (_balanceInP2P > 0) weightedRate = rayMul(_p2pRate, rayDiv(_balanceInP2P, totalBalance));
+        if (_balanceInP2P > 0) weightedRate = WadRayMath.rayMul(_p2pRate, WadRayMath.rayDiv(_balanceInP2P, totalBalance));
         if (_balanceOnPool > 0)
-            weightedRate = weightedRate.add(rayMul(_poolRate, rayDiv(_balanceOnPool, totalBalance)));
+            weightedRate = weightedRate.add(WadRayMath.rayMul(_poolRate, WadRayMath.rayDiv(_balanceOnPool, totalBalance)));
     }
 
     function getAaveRates(uint256 amount) private view returns (uint256 supplyRate, uint256 variableBorrowRate) {
-        ILendingPoolAave.ReserveData memory reserve = pool.getReserveData(address(want));
+        DataTypes.ReserveData memory reserve = pool.getReserveData(address(want));
         (uint256 availableLiquidity, uint256 totalStableDebt, uint256 totalVariableDebt, , , , uint256 averageStableBorrowRate, , , ) =
             protocolDataProvider.getReserveData(address(want));
         (, , , , uint256 reserveFactor, , , , , ) = protocolDataProvider.getReserveConfigurationData(address(want));
@@ -445,125 +448,28 @@ contract GenericAaveMorpho is GenericLenderBase {
         if (_params.poolSupplyRatePerYear > _params.poolBorrowRatePerYear) {
             p2pSupplyRate = _params.poolBorrowRatePerYear; // The p2pSupplyRate is set to the poolBorrowRatePerYear because there is no rate spread.
         } else {
-            uint256 p2pRate = weightedAvg(
+            uint256 p2pRate = PercentageMath.weightedAvg(
                 _params.poolSupplyRatePerYear,
                 _params.poolBorrowRatePerYear,
                 _params.p2pIndexCursor
             );
 
             p2pSupplyRate =
-                p2pRate.sub(percentMul((p2pRate.sub(_params.poolSupplyRatePerYear)), _params.reserveFactor));
+                p2pRate.sub(PercentageMath.percentMul((p2pRate.sub(_params.poolSupplyRatePerYear)), _params.reserveFactor));
         }
 
         if (_params.p2pDelta > 0 && _params.p2pAmount > 0) {
             uint256 shareOfTheDelta = Math.min(
-                rayDiv(
-                    rayMul(_params.p2pDelta, _params.poolIndex),
-                    rayMul(_params.p2pAmount, _params.p2pIndex)
+                WadRayMath.rayDiv(
+                    WadRayMath.rayMul(_params.p2pDelta, _params.poolIndex),
+                    WadRayMath.rayMul(_params.p2pAmount, _params.p2pIndex)
                 ), // Using ray division of an amount in underlying decimals by an amount in underlying decimals yields a value in ray.
-                RAY // To avoid shareOfTheDelta > 1 with rounding errors.
+                WadRayMath.RAY // To avoid shareOfTheDelta > 1 with rounding errors.
             ); // In ray.
 
             p2pSupplyRate =
-                rayMul(p2pSupplyRate, RAY.sub(shareOfTheDelta))
-                .add(rayMul(_params.poolSupplyRatePerYear, shareOfTheDelta));
-        }
-    }
-
-
-    // ********** MORPHO MATH **********
-    uint256 internal constant MAX_UINT256 = 2**256 - 1; // Not possible to use type(uint256).max in yul.
-    uint256 internal constant MAX_UINT256_MINUS_HALF_RAY = 2**256 - 1 - 0.5e27;
-    uint256 internal constant MAX_UINT256_MINUS_HALF_PERCENTAGE = 2**256 - 1 - 0.5e4;
-    uint256 internal constant PERCENTAGE_FACTOR = 1e4; // 100.00%
-    uint256 internal constant HALF_PERCENTAGE_FACTOR = 0.5e4; // 50.00%
-    uint256 internal constant RAY = 1e27;
-    uint256 internal constant HALF_RAY = 0.5e27;
-
-    /// @dev Multiplies two ray, rounding half up to the nearest ray.
-    /// @param x Ray.
-    /// @param y Ray.
-    /// @return z The result of x * y, in ray.
-    function rayMul(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        // Let y > 0
-        // Overflow if (x * y + HALF_RAY) > type(uint256).max
-        // <=> x * y > type(uint256).max - HALF_RAY
-        // <=> x > (type(uint256).max - HALF_RAY) / y
-        assembly {
-            if mul(y, gt(x, div(MAX_UINT256_MINUS_HALF_RAY, y))) {
-                revert(0, 0)
-            }
-
-            z := div(add(mul(x, y), HALF_RAY), RAY)
-        }
-    }
-
-    /// @dev Divides two ray, rounding half up to the nearest ray.
-    /// @param x Ray.
-    /// @param y Ray.
-    /// @return z The result of x / y, in ray.
-    function rayDiv(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        // Overflow if y == 0
-        // Overflow if (x * RAY + y / 2) > type(uint256).max
-        // <=> x * RAY > type(uint256).max - y / 2
-        // <=> x > (type(uint256).max - y / 2) / RAY
-        assembly {
-            z := div(y, 2)
-            if iszero(mul(y, iszero(gt(x, div(sub(MAX_UINT256, z), RAY))))) {
-                revert(0, 0)
-            }
-
-            z := div(add(mul(RAY, x), z), y)
-        }
-    }
-
-    /// @notice Executes a percentage multiplication (x * p), rounded up.
-    /// @param x The value to multiply by the percentage.
-    /// @param percentage The percentage of the value to multiply.
-    /// @return y The result of the multiplication.
-    function percentMul(uint256 x, uint256 percentage) internal pure returns (uint256 y) {
-        // Must revert if
-        // x * percentage + HALF_PERCENTAGE_FACTOR > type(uint256).max
-        // <=> percentage > 0 and x > (type(uint256).max - HALF_PERCENTAGE_FACTOR) / percentage
-        assembly {
-            if mul(percentage, gt(x, div(MAX_UINT256_MINUS_HALF_PERCENTAGE, percentage))) {
-                revert(0, 0)
-            }
-
-            y := div(add(mul(x, percentage), HALF_PERCENTAGE_FACTOR), PERCENTAGE_FACTOR)
-        }
-    }
-
-    /// @notice Executes a weighted average (x * (1 - p) + y * p), rounded up.
-    /// @param x The first value, with a weight of 1 - percentage.
-    /// @param y The second value, with a weight of percentage.
-    /// @param percentage The weight of y, and complement of the weight of x.
-    /// @return z The result of the weighted average.
-    function weightedAvg(
-        uint256 x,
-        uint256 y,
-        uint256 percentage
-    ) internal pure returns (uint256 z) {
-        // Must revert if
-        //     percentage > PERCENTAGE_FACTOR
-        // or if
-        //     y * percentage + HALF_PERCENTAGE_FACTOR > type(uint256).max
-        //     <=> percentage > 0 and y > (type(uint256).max - HALF_PERCENTAGE_FACTOR) / percentage
-        // or if
-        //     x * (PERCENTAGE_FACTOR - percentage) + y * percentage + HALF_PERCENTAGE_FACTOR > type(uint256).max
-        //     <=> (PERCENTAGE_FACTOR - percentage) > 0 and x > (type(uint256).max - HALF_PERCENTAGE_FACTOR - y * percentage) / (PERCENTAGE_FACTOR - percentage)
-        assembly {
-            z := sub(PERCENTAGE_FACTOR, percentage) // Temporary assignment to save gas.
-            if or(
-                gt(percentage, PERCENTAGE_FACTOR),
-                or(
-                    mul(percentage, gt(y, div(MAX_UINT256_MINUS_HALF_PERCENTAGE, percentage))),
-                    mul(z, gt(x, div(sub(MAX_UINT256_MINUS_HALF_PERCENTAGE, mul(y, percentage)), z)))
-                )
-            ) {
-                revert(0, 0)
-            }
-            z := div(add(add(mul(x, z), mul(y, percentage)), HALF_PERCENTAGE_FACTOR), PERCENTAGE_FACTOR)
+                WadRayMath.rayMul(p2pSupplyRate, WadRayMath.RAY.sub(shareOfTheDelta))
+                .add(WadRayMath.rayMul(_params.poolSupplyRatePerYear, shareOfTheDelta));
         }
     }
 }
