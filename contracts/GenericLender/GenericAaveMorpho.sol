@@ -241,6 +241,7 @@ contract GenericAaveMorpho is GenericLenderBase {
         IMorpho.Market memory market = MORPHO.market(aToken);
         IMorpho.Delta memory delta = MORPHO.deltas(aToken);
 
+        IMorpho.SupplyBalance memory startBalance = MORPHO.supplyBalanceInOf(aToken, address(this));
         IMorpho.SupplyBalance memory supplyBalance = MORPHO.supplyBalanceInOf(aToken, address(this));
         if (_amount > 0 && delta.p2pBorrowDelta > 0) {
             uint256 matchedDelta = Math.min(
@@ -275,8 +276,8 @@ contract GenericAaveMorpho is GenericLenderBase {
 
         if (_amount > 0) supplyBalance.onPool = supplyBalance.onPool.add(rayDiv(_amount, indexes.poolSupplyIndex));
 
-        IMorpho.SupplyBalance memory startBalance = MORPHO.supplyBalanceInOf(aToken, address(this));
-        (uint256 poolSupplyRate, uint256 variableBorrowRate) = getAaveRates(supplyBalance.onPool - startBalance.onPool);
+        (uint256 poolSupplyRate, uint256 variableBorrowRate) = 
+            getAaveRates(rayMul(supplyBalance.onPool - startBalance.onPool, indexes.poolSupplyIndex));
 
         uint256 p2pSupplyRate = computeP2PSupplyRatePerYear(
             P2PRateComputeParams({
@@ -291,13 +292,11 @@ contract GenericAaveMorpho is GenericLenderBase {
             })
         );
 
-        uint256 balanceOnPool = rayMul(supplyBalance.onPool, indexes.poolSupplyIndex);
-        uint256 balanceInP2P = rayMul(supplyBalance.inP2P, indexes.p2pSupplyIndex);
         (uint256 weightedRate, ) = getWeightedRate(
                 p2pSupplyRate,
                 poolSupplyRate,
-                balanceInP2P,
-                balanceOnPool
+                rayMul(supplyBalance.inP2P, indexes.p2pSupplyIndex),
+                rayMul(supplyBalance.onPool, indexes.poolSupplyIndex)
             );
 
         // downscale to WAD(1e18)
@@ -456,7 +455,6 @@ contract GenericAaveMorpho is GenericLenderBase {
                 p2pRate.sub(percentMul((p2pRate.sub(_params.poolSupplyRatePerYear)), _params.reserveFactor));
         }
 
-        // TODO: problem is that we alway have p2pDelta = 0 !!!
         if (_params.p2pDelta > 0 && _params.p2pAmount > 0) {
             uint256 shareOfTheDelta = Math.min(
                 rayDiv(

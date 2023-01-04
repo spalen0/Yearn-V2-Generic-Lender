@@ -73,8 +73,8 @@ token_prices = {
 @pytest.fixture(autouse=True)
 def amount(token, whale):
     # this will get the number of tokens (around $1m worth of token)
-    amillion = round(1_000_000 / token_prices[token.symbol()])
-    amount = amillion * 10 ** token.decimals()
+    ten_million = round(10_000_000 / token_prices[token.symbol()])
+    amount = ten_million * 10 ** token.decimals()
     # # In order to get some funds for the token you are about to use,
     # # it impersonate a whale address
     if amount > token.balanceOf(whale):
