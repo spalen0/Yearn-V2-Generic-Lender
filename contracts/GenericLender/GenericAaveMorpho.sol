@@ -135,7 +135,7 @@ contract GenericAaveMorpho is GenericLenderBase {
         uint256 currentUserSupplyRatePerYearInRay = LENS
             .getCurrentUserSupplyRatePerYear(aToken, address(this));
         // downscale to WAD(1e18)
-        return currentUserSupplyRatePerYearInRay.div(1e9);
+        return currentUserSupplyRatePerYearInRay.div(WadRayMath.WAD_RAY_RATIO);
     }
 
     function weightedApr() external view override returns (uint256) {
@@ -246,35 +246,38 @@ contract GenericAaveMorpho is GenericLenderBase {
 
         IMorpho.SupplyBalance memory startBalance = MORPHO.supplyBalanceInOf(aToken, address(this));
         IMorpho.SupplyBalance memory supplyBalance = MORPHO.supplyBalanceInOf(aToken, address(this));
-        if (_amount > 0 && delta.p2pBorrowDelta > 0) {
-            uint256 matchedDelta = Math.min(
-                WadRayMath.rayMul(delta.p2pBorrowDelta, indexes.poolBorrowIndex),
-                _amount
-            );
 
-            supplyBalance.inP2P = supplyBalance.inP2P.add(WadRayMath.rayDiv(matchedDelta, indexes.p2pSupplyIndex));
-            _amount = _amount.sub(matchedDelta);
-        }
-
-        if (_amount > 0 && !market.isP2PDisabled) {
-            address firstPoolBorrower = MORPHO.getHead(
-                aToken,
-                IMorpho.PositionType.BORROWERS_ON_POOL
-            );
-            uint256 firstPoolBorrowerBalance = MORPHO
-            .borrowBalanceInOf(aToken, firstPoolBorrower)
-            .onPool;
-
-            if (firstPoolBorrowerBalance > 0) {
-                uint256 matchedP2P = Math.min(
-                    WadRayMath.rayMul(firstPoolBorrowerBalance, indexes.poolBorrowIndex),
+        if (!market.isP2PDisabled) {
+            if (_amount > 0 && delta.p2pBorrowDelta > 0) {
+                uint256 matchedDelta = Math.min(
+                    WadRayMath.rayMul(delta.p2pBorrowDelta, indexes.poolBorrowIndex),
                     _amount
                 );
 
-                supplyBalance.inP2P = supplyBalance.inP2P.add(WadRayMath.rayDiv(matchedP2P, indexes.p2pSupplyIndex));
-                _amount = _amount.sub(matchedP2P);
+                supplyBalance.inP2P = supplyBalance.inP2P.add(WadRayMath.rayDiv(matchedDelta, indexes.p2pSupplyIndex));
+                _amount = _amount.sub(matchedDelta);
             }
-            // we could add more p2p matching here, not just first head
+
+            if (_amount > 0) {
+                address firstPoolBorrower = MORPHO.getHead(
+                    aToken,
+                    IMorpho.PositionType.BORROWERS_ON_POOL
+                );
+                uint256 firstPoolBorrowerBalance = MORPHO
+                .borrowBalanceInOf(aToken, firstPoolBorrower)
+                .onPool;
+
+                if (firstPoolBorrowerBalance > 0) {
+                    uint256 matchedP2P = Math.min(
+                        WadRayMath.rayMul(firstPoolBorrowerBalance, indexes.poolBorrowIndex),
+                        _amount
+                    );
+
+                    supplyBalance.inP2P = supplyBalance.inP2P.add(WadRayMath.rayDiv(matchedP2P, indexes.p2pSupplyIndex));
+                    _amount = _amount.sub(matchedP2P);
+                }
+                // we could add more p2p matching here, not just first head
+            }
         }
 
         if (_amount > 0) supplyBalance.onPool = supplyBalance.onPool.add(WadRayMath.rayDiv(_amount, indexes.poolSupplyIndex));
@@ -303,7 +306,7 @@ contract GenericAaveMorpho is GenericLenderBase {
             );
 
         // downscale to WAD(1e18)
-        return weightedRate.div(1e9);
+        return weightedRate.div(WadRayMath.WAD_RAY_RATIO);
     }
 
     function protectedTokens() internal view override returns (address[] memory) {
