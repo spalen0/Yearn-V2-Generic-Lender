@@ -32,8 +32,9 @@ contract GenericAaveMorpho is GenericLenderBase {
     using Address for address;
     using SafeMath for uint256;
 
-    ILendingPool internal pool = ILendingPool(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);
-    IProtocolDataProvider internal protocolDataProvider = IProtocolDataProvider(0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d);
+    ILendingPool internal constant POOL = ILendingPool(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);
+    IProtocolDataProvider internal constant AAVE_DATA_PROIVDER =
+        IProtocolDataProvider(0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d);
 
     // Morpho is a contract to handle interaction with the protocol
     IMorpho internal constant MORPHO = IMorpho(0x777777c9898D384F785Ee44Acfe945efDFf5f3E0);
@@ -411,10 +412,10 @@ contract GenericAaveMorpho is GenericLenderBase {
     }
 
     function getAaveRates(uint256 amount) private view returns (uint256 supplyRate, uint256 variableBorrowRate) {
-        DataTypes.ReserveData memory reserve = pool.getReserveData(address(want));
+        DataTypes.ReserveData memory reserve = POOL.getReserveData(address(want));
         (uint256 availableLiquidity, uint256 totalStableDebt, uint256 totalVariableDebt, , , , uint256 averageStableBorrowRate, , , ) =
-            protocolDataProvider.getReserveData(address(want));
-        (, , , , uint256 reserveFactor, , , , , ) = protocolDataProvider.getReserveConfigurationData(address(want));
+            AAVE_DATA_PROIVDER.getReserveData(address(want));
+        (, , , , uint256 reserveFactor, , , , , ) = AAVE_DATA_PROIVDER.getReserveConfigurationData(address(want));
 
         (supplyRate, , variableBorrowRate) =
             IReserveInterestRateStrategy(reserve.interestRateStrategyAddress).calculateInterestRates(
