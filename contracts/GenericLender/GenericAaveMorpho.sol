@@ -170,14 +170,15 @@ contract GenericAaveMorpho is GenericLenderBase {
             return amount;
         }
 
-        // no fear of underflow
-        uint256 toWithdraw = amount - looseBalance;
-        if (toWithdraw > balanceUnderlying) {
-            // withdraw all
-            MORPHO.withdraw(aToken, type(uint256).max);
-        } else {
-            // withdraw what is needed
-            MORPHO.withdraw(aToken, toWithdraw);
+        // if the market is paused we cannot withdraw
+        IMorpho.Market memory market = MORPHO.market(aToken);
+        if (!market.isPaused) {
+            // check if there is enough liquidity in aave
+            uint256 aaveLiquidity = want.balanceOf(address(aToken));
+            if (aaveLiquidity > 1) {
+                // no fear of underflow, withdraw all we need or all liquidity from aave
+                MORPHO.withdraw(aToken, Math.min(amount - looseBalance, aaveLiquidity));
+            }
         }
         // calculate withdrawan balance to new loose balance
         looseBalance = want.balanceOf(address(this));
@@ -219,11 +220,8 @@ contract GenericAaveMorpho is GenericLenderBase {
      */
     function withdrawAll() external override management returns (bool) {
         uint256 invested = _nav();
-        // withdraw all
-        MORPHO.withdraw(aToken, type(uint256).max);
-        uint256 wantBalance = want.balanceOf(address(this));
-        want.safeTransfer(address(strategy), wantBalance);
-        return wantBalance >= invested;
+        uint256 returned = _withdraw(invested);
+        return returned >= invested;
     }
 
     function hasAssets() external view override returns (bool) {
@@ -292,7 +290,7 @@ contract GenericAaveMorpho is GenericLenderBase {
                 poolIndex: indexes.poolSupplyIndex,
                 p2pIndex: indexes.p2pSupplyIndex,
                 p2pDelta: delta.p2pSupplyDelta,
-                p2pAmount: delta.p2pSupplyAmount.add(supplyBalance.inP2P - startBalance.inP2P),
+                p2pAmount: delta.p2pSupplyAmount,
                 p2pIndexCursor: market.p2pIndexCursor,
                 reserveFactor: market.reserveFactor
             })
