@@ -242,10 +242,9 @@ contract GenericAaveMorpho is GenericLenderBase {
         ILens.Indexes memory indexes = LENS.getIndexes(aToken);
         IMorpho.Market memory market = MORPHO.market(aToken);
         IMorpho.Delta memory delta = MORPHO.deltas(aToken);
-
-        IMorpho.SupplyBalance memory startBalance = MORPHO.supplyBalanceInOf(aToken, address(this));
         IMorpho.SupplyBalance memory supplyBalance = MORPHO.supplyBalanceInOf(aToken, address(this));
 
+        uint256 repaidToPool;
         if (!market.isP2PDisabled) {
             if (_amount > 0 && delta.p2pBorrowDelta > 0) {
                 uint256 matchedDelta = Math.min(
@@ -273,16 +272,20 @@ contract GenericAaveMorpho is GenericLenderBase {
                     );
 
                     supplyBalance.inP2P = supplyBalance.inP2P.add(WadRayMath.rayDiv(matchedP2P, indexes.p2pSupplyIndex));
+                    repaidToPool = matchedP2P;
                     _amount = _amount.sub(matchedP2P);
                 }
                 // we could add more p2p matching here, not just first head
             }
         }
 
-        if (_amount > 0) supplyBalance.onPool = supplyBalance.onPool.add(WadRayMath.rayDiv(_amount, indexes.poolSupplyIndex));
+        uint256 suppliedToPool;
+        if (_amount > 0) {
+            supplyBalance.onPool = supplyBalance.onPool.add(WadRayMath.rayDiv(_amount, indexes.poolSupplyIndex));
+            suppliedToPool = _amount;
+        }
 
-        (uint256 poolSupplyRate, uint256 variableBorrowRate) = 
-            getAaveRates(WadRayMath.rayMul(supplyBalance.onPool - startBalance.onPool, indexes.poolSupplyIndex));
+        (uint256 poolSupplyRate, uint256 variableBorrowRate) = getAaveRates(suppliedToPool, repaidToPool);
 
         uint256 p2pSupplyRate = computeP2PSupplyRatePerYear(
             P2PRateComputeParams({
@@ -388,7 +391,7 @@ contract GenericAaveMorpho is GenericLenderBase {
         tradeFactory = address(0);
     }
 
-    // ********* MORPHO RATES *********
+    // ********* RATES CALCULATIONS *********
 
     /// @dev Returns the rate experienced based on a given pool & peer-to-peer distribution.
     /// @param _p2pRate The peer-to-peer rate (in a unit common to `_poolRate` & `weightedRate`).
@@ -411,20 +414,44 @@ contract GenericAaveMorpho is GenericLenderBase {
             weightedRate = weightedRate.add(WadRayMath.rayMul(_poolRate, WadRayMath.rayDiv(_balanceOnPool, totalBalance)));
     }
 
-    function getAaveRates(uint256 amount) private view returns (uint256 supplyRate, uint256 variableBorrowRate) {
+    struct PoolRatesVars {
+        uint256 availableLiquidity;
+        uint256 totalStableDebt;
+        uint256 totalVariableDebt;
+        uint256 avgStableBorrowRate;
+        uint256 reserveFactor;
+    }
+
+    /// @notice Computes and returns the underlying pool rates on AAVE.
+    /// @param suppliedToPool The amount hypothetically supplied.
+    /// @param repaidToPool The amount hypothetically repaid.
+    /// @return supplyRate The market's pool supply rate per year (in ray).
+    /// @return variableBorrowRate The market's pool borrow rate per year (in ray).
+    function getAaveRates(uint256 suppliedToPool, uint256 repaidToPool) private view returns (uint256 supplyRate, uint256 variableBorrowRate) {
         DataTypes.ReserveData memory reserve = POOL.getReserveData(address(want));
-        (uint256 availableLiquidity, uint256 totalStableDebt, uint256 totalVariableDebt, , , , uint256 averageStableBorrowRate, , , ) =
-            AAVE_DATA_PROIVDER.getReserveData(address(want));
-        (, , , , uint256 reserveFactor, , , , , ) = AAVE_DATA_PROIVDER.getReserveConfigurationData(address(want));
+        PoolRatesVars memory vars;
+        (
+            vars.availableLiquidity,
+            vars.totalStableDebt,
+            vars.totalVariableDebt,
+            ,
+            ,
+            ,
+            vars.avgStableBorrowRate,
+            ,
+            ,
+
+        ) = AAVE_DATA_PROIVDER.getReserveData(address(want));
+        (, , , , vars.reserveFactor, , , , , ) = AAVE_DATA_PROIVDER.getReserveConfigurationData(address(want));
 
         (supplyRate, , variableBorrowRate) =
             IReserveInterestRateStrategy(reserve.interestRateStrategyAddress).calculateInterestRates(
                 address(want),
-                availableLiquidity.add(amount),
-                totalStableDebt,
-                totalVariableDebt,
-                averageStableBorrowRate,
-                reserveFactor
+                vars.availableLiquidity.add(suppliedToPool).add(repaidToPool), // repaidToPool is added to avaiable liquidity by aave impl, see :https://github.com/aave/protocol-v2/blob/0829f97c5463f22087cecbcb26e8ebe558592c16/contracts/protocol/lendingpool/LendingPool.sol#L277
+                vars.totalStableDebt,
+                vars.totalVariableDebt.sub(repaidToPool),
+                vars.avgStableBorrowRate,
+                vars.reserveFactor
             );
     }
 
@@ -450,14 +477,14 @@ contract GenericAaveMorpho is GenericLenderBase {
         if (_params.poolSupplyRatePerYear > _params.poolBorrowRatePerYear) {
             p2pSupplyRate = _params.poolBorrowRatePerYear; // The p2pSupplyRate is set to the poolBorrowRatePerYear because there is no rate spread.
         } else {
-            uint256 p2pRate = PercentageMath.weightedAvg(
+            p2pSupplyRate = PercentageMath.weightedAvg(
                 _params.poolSupplyRatePerYear,
                 _params.poolBorrowRatePerYear,
                 _params.p2pIndexCursor
             );
 
             p2pSupplyRate =
-                p2pRate.sub(PercentageMath.percentMul((p2pRate.sub(_params.poolSupplyRatePerYear)), _params.reserveFactor));
+                p2pSupplyRate.sub(PercentageMath.percentMul((p2pSupplyRate.sub(_params.poolSupplyRatePerYear)), _params.reserveFactor));
         }
 
         if (_params.p2pDelta > 0 && _params.p2pAmount > 0) {
