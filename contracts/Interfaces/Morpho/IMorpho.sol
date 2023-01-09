@@ -19,17 +19,14 @@ interface IMorpho {
         bool isPartiallyPaused; // Whether the market is partially paused or not (only supply and borrow are frozen).
         bool isP2PDisabled; // Whether the market's peer-to-peer is open or not.
     }
-
     struct SupplyBalance {
         uint256 inP2P; // In peer-to-peer supply scaled unit, a unit that grows in underlying value, to keep track of the interests earned by suppliers in peer-to-peer. Multiply by the peer-to-peer supply index to get the underlying amount.
         uint256 onPool; // In pool supply scaled unit. Multiply by the pool supply index to get the underlying amount.
     }
-
     struct BorrowBalance {
         uint256 inP2P; // In peer-to-peer borrow scaled unit, a unit that grows in underlying value, to keep track of the interests paid by borrowers in peer-to-peer. Multiply by the peer-to-peer borrow index to get the underlying amount.
         uint256 onPool; // In pool borrow scaled unit, a unit that grows in value, to keep track of the debt increase when borrowers are on Aave. Multiply by the pool borrow index to get the underlying amount.
     }
-
     struct Delta {
         uint256 p2pSupplyDelta; // Difference between the stored peer-to-peer supply amount and the real peer-to-peer supply amount (in pool supply unit).
         uint256 p2pBorrowDelta; // Difference between the stored peer-to-peer borrow amount and the real peer-to-peer borrow amount (in pool borrow unit).
@@ -43,13 +40,7 @@ interface IMorpho {
         uint256 _amount,
         uint256 _maxGasForMatching
     ) external;
-
     function withdraw(address _poolTokenAddress, uint256 _amount) external;
-
-    function claimRewards(
-        address[] calldata _cTokenAddresses,
-        bool _tradeForMorphoToken
-    ) external returns (uint256 claimedAmount);
 
     function getHead(address _poolToken, PositionType _positionType) external view returns (address head);
     function supplyBalanceInOf(address, address) external view returns (SupplyBalance memory);
