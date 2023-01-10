@@ -48,7 +48,8 @@ def test_apr(
             f" {form.format(j[2]/1e18)}"
         )
 
-    assert realApr > predictedApr * 0.999 and realApr < predictedApr * 1.001
+    # don't check upper value because we calculate lowest apr
+    assert realApr > predictedApr * 0.999
 
     predictedApr = strategy.estimatedFutureAPR(firstDeposit * 2)
     tx2 = strategy.estimatedFutureAPR.transact(firstDeposit * 2, {"from": gov})
@@ -71,4 +72,5 @@ def test_apr(
             f"Lender: {j[0]}, Deposits: {formS.format(j[1]/1e6)}, APR:"
             f" {form.format(j[2]/1e18)}"
         )
-    assert realApr > predictedApr * 0.999 and realApr < predictedApr * 1.001
+    # don't check upper value because we calculate lowest apr
+    assert realApr > predictedApr * 0.999

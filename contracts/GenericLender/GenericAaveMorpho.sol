@@ -82,7 +82,7 @@ contract GenericAaveMorpho is GenericLenderBase {
         );
         aToken = _aToken;
         IMorpho.Market memory market = MORPHO.market(aToken);
-        require(market.underlyingToken == address(want), "WRONG CTOKEN");
+        require(market.underlyingToken == address(want), "WRONG A_TOKEN");
         want.safeApprove(address(MORPHO), type(uint256).max);
         // 100000 is the default value set by Morpho
         maxGasForMatching = 100000;
@@ -233,10 +233,10 @@ contract GenericAaveMorpho is GenericLenderBase {
     }
 
     /**
-     * @notice Calculate new APR for supplying amount to lender.
-     * @dev For P2P APR only biggest borrower from the pool is accounted.
-     * @param _amount to supply
-     * @return New lender APR after supplying given amount
+     * @notice Calculate new lowest possible APR for supplying amount to lender.
+     * @dev For P2P APR only biggest borrower from the pool is accounted that why we get lowest possible APR.
+     * @param _amount to supply.
+     * @return New lender lowest possible APR after supplying given amount.
      */
     function aprAfterDeposit(uint256 _amount) external view override returns (uint256) {
         ILens.Indexes memory indexes = LENS.getIndexes(aToken);
@@ -246,13 +246,14 @@ contract GenericAaveMorpho is GenericLenderBase {
 
         uint256 repaidToPool;
         if (!market.isP2PDisabled) {
-            if (_amount > 0 && delta.p2pBorrowDelta > 0) {
+            if (delta.p2pBorrowDelta > 0) {
                 uint256 matchedDelta = Math.min(
                     WadRayMath.rayMul(delta.p2pBorrowDelta, indexes.poolBorrowIndex),
                     _amount
                 );
 
                 supplyBalance.inP2P = supplyBalance.inP2P.add(WadRayMath.rayDiv(matchedDelta, indexes.p2pSupplyIndex));
+                repaidToPool = repaidToPool.add(matchedDelta);
                 _amount = _amount.sub(matchedDelta);
             }
 
@@ -272,7 +273,7 @@ contract GenericAaveMorpho is GenericLenderBase {
                     );
 
                     supplyBalance.inP2P = supplyBalance.inP2P.add(WadRayMath.rayDiv(matchedP2P, indexes.p2pSupplyIndex));
-                    repaidToPool = matchedP2P;
+                    repaidToPool = repaidToPool.add(matchedP2P);
                     _amount = _amount.sub(matchedP2P);
                 }
                 // we could add more p2p matching here, not just first head
@@ -301,13 +302,11 @@ contract GenericAaveMorpho is GenericLenderBase {
         );
 
         (uint256 weightedRate, ) = getWeightedRate(
-                p2pSupplyRate,
-                poolSupplyRate,
-                WadRayMath.rayMul(supplyBalance.inP2P, indexes.p2pSupplyIndex),
-                WadRayMath.rayMul(supplyBalance.onPool, indexes.poolSupplyIndex)
-            );
-
-        // downscale to WAD(1e18)
+            p2pSupplyRate,
+            poolSupplyRate,
+            WadRayMath.rayMul(supplyBalance.inP2P, indexes.p2pSupplyIndex),
+            WadRayMath.rayMul(supplyBalance.onPool, indexes.poolSupplyIndex)
+        );
         return weightedRate.div(WadRayMath.WAD_RAY_RATIO);
     }
 
@@ -391,7 +390,7 @@ contract GenericAaveMorpho is GenericLenderBase {
         tradeFactory = address(0);
     }
 
-    // ********* RATES CALCULATIONS *********
+    // ---------------------- RATES CALCULATIONS ----------------------
 
     /// @dev Returns the rate experienced based on a given pool & peer-to-peer distribution.
     /// @param _p2pRate The peer-to-peer rate (in a unit common to `_poolRate` & `weightedRate`).
@@ -447,7 +446,7 @@ contract GenericAaveMorpho is GenericLenderBase {
         (supplyRate, , variableBorrowRate) =
             IReserveInterestRateStrategy(reserve.interestRateStrategyAddress).calculateInterestRates(
                 address(want),
-                vars.availableLiquidity.add(suppliedToPool).add(repaidToPool), // repaidToPool is added to avaiable liquidity by aave impl, see :https://github.com/aave/protocol-v2/blob/0829f97c5463f22087cecbcb26e8ebe558592c16/contracts/protocol/lendingpool/LendingPool.sol#L277
+                vars.availableLiquidity.add(suppliedToPool).add(repaidToPool), // repaidToPool is added to avaiable liquidity by aave impl, see: https://github.com/aave/protocol-v2/blob/0829f97c5463f22087cecbcb26e8ebe558592c16/contracts/protocol/lendingpool/LendingPool.sol#L277
                 vars.totalStableDebt,
                 vars.totalVariableDebt.sub(repaidToPool),
                 vars.avgStableBorrowRate,
