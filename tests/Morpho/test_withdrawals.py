@@ -191,3 +191,42 @@ def test_withdrawal_above_aave_liquidity(
     state = vault.strategies(strategy)
     total_losses = state[8] / (10 ** decimals)
     assert total_losses == 0
+
+
+def test_emergency_withdrawal(
+    interface,
+    chain,
+    whale,
+    gov,
+    strategist,
+    vault,
+    strategy,
+    currency,
+    valueOfCurrencyInDollars,
+    amount,
+    accounts,
+    pool_token,
+):
+    starting_balance = currency.balanceOf(strategist)
+    decimals = currency.decimals()
+
+    currency.approve(vault, 2**256 - 1, {"from": whale})
+    currency.approve(vault, 2**256 - 1, {"from": strategist})
+
+    deposit_limit = 1_000_000_000 * 10**decimals
+    debt_ratio = 10000
+    vault.addStrategy(strategy, debt_ratio, 0, 2**256 - 1, 500, {"from": gov})
+    vault.setDepositLimit(deposit_limit, {"from": gov})
+
+    gov_balance = currency.balanceOf(gov)
+    depositAmount = amount / 100
+    vault.deposit(depositAmount, {"from": strategist})
+
+    chain.sleep(1)
+    strategy.harvest({"from": strategist})
+    status = strategy.lendStatuses()
+    for j in status:
+        plugin = interface.IGeneric(j[3])
+        plugin.emergencyWithdraw(depositAmount, {"from": gov})
+
+    assert currency.balanceOf(gov) >= gov_balance + depositAmount

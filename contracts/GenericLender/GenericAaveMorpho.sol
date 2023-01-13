@@ -153,7 +153,8 @@ contract GenericAaveMorpho is GenericLenderBase {
      * @param amount to withdraw from Morpho, defined in want token value
      */
     function emergencyWithdraw(uint256 amount) external override onlyGovernance {
-        _withdraw(amount);
+        // use uint256.type(max) to withdraw everything
+        MORPHO.withdraw(aToken, amount);
         want.safeTransfer(vault.governance(), want.balanceOf(address(this)));
     }
 
