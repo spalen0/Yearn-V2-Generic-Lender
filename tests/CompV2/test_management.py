@@ -74,7 +74,7 @@ def test_setter_functions(
 
     minCompToSell = 10**20
     minCompToClaim = 10**5
-    dustThreshold = 10**10
+    dust = 10**10
     compEthFee = 3000
     ethWantFee = 500
 
@@ -83,11 +83,11 @@ def test_setter_functions(
     with brownie.reverts():
         plugin.setRewardStuff(minCompToSell, minCompToClaim, {"from": rando})
     with brownie.reverts():
-        plugin.setDustThreshold(dustThreshold, {"from": rando})
+        plugin.setDust(dust, {"from": rando})
 
     plugin.setKeep3r(accounts[1], {"from": strategist})
     plugin.setRewardStuff(minCompToSell, minCompToClaim, {"from": strategist})
-    plugin.setDustThreshold(dustThreshold, {"from": strategist})
+    plugin.setDust(dust, {"from": strategist})
 
     if pluginType == GenericCompound:
         with brownie.reverts():
@@ -103,7 +103,7 @@ def test_setter_functions(
     assert plugin.keep3r() == accounts[1]
     assert plugin.minCompToSell() == minCompToSell
     assert plugin.minCompToClaim() == minCompToClaim
-    assert plugin.dustThreshold() == dustThreshold
+    assert plugin.dust() == dust
     assert plugin.compToEthFee() == compEthFee
 
     # only GenericCompound has clone function
@@ -118,7 +118,7 @@ def test_setter_functions(
     assert clone.keep3r() == ZERO_ADDRESS
     assert clone.minCompToSell() == 10 * (10**18)
     assert clone.minCompToClaim() == 1 * (10**18)
-    assert clone.dustThreshold() == 0
+    assert clone.dust() == 10000
     assert clone.ethToWantFee() == 0
     assert clone.compToEthFee() == 0
 
@@ -127,7 +127,7 @@ def test_setter_functions(
     with brownie.reverts():
         clone.setRewardStuff(minCompToSell, minCompToClaim, {"from": rando})
     with brownie.reverts():
-        clone.setDustThreshold(dustThreshold, {"from": rando})
+        clone.setDust(dust, {"from": rando})
 
     if pluginType == GenericCompound:
         with brownie.reverts():
@@ -142,10 +142,48 @@ def test_setter_functions(
 
     clone.setKeep3r(accounts[1], {"from": strategist})
     clone.setRewardStuff(minCompToSell, minCompToClaim, {"from": strategist})
-    clone.setDustThreshold(dustThreshold, {"from": strategist})
+    clone.setDust(dust, {"from": strategist})
 
     assert clone.keep3r() == accounts[1]
     assert clone.minCompToSell() == minCompToSell
     assert clone.minCompToClaim() == minCompToClaim
-    assert clone.dustThreshold() == dustThreshold
+    assert clone.dust() == dust
     assert clone.compToEthFee() == compEthFee
+
+
+def test_eth_sweep(
+    chain,
+    whale,
+    gov,
+    strategist,
+    EthCompound,
+    pluginType,
+    rando,
+    vault,
+    strategy,
+    accounts,
+    compCurrency,
+    currency,
+    weth,
+):
+    plugin = pluginType.at(strategy.lenders(0))
+    if plugin != EthCompound:
+        return
+
+    amount = 10 * 1e18
+    weth.withdraw(amount, {"from": whale})
+
+    whale.transfer(plugin, amount)
+    assert plugin.balance() == amount
+
+    gov_balance = gov.balance()
+
+    with brownie.reverts():
+        plugin.sweepETH({"from": rando})
+
+    assert plugin.balance() == amount
+    assert gov.balance() == gov_balance
+
+    plugin.sweepETH({"from": gov})
+    assert plugin.balance() == 0
+    assert gov.balance() == gov_balance + amount
