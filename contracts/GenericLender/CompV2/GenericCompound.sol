@@ -37,10 +37,8 @@ contract GenericCompound is GenericLenderBase {
 
     // eth blocks are mined every 12s -> 3600 * 24 * 365 / 12 = 2_628_000
     uint256 private constant BLOCKS_PER_YEAR = 2_628_000;
-    address internal constant COMP =
-        address(0xc00e94Cb662C3520282E6f5717214004A7f26888);
-    address internal constant WETH =
-        address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    address internal constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address internal constant COMP = 0xc00e94Cb662C3520282E6f5717214004A7f26888;
     ComptrollerI public constant COMPTROLLER =
         ComptrollerI(0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B);
     UniswapAnchoredViewI public constant PRICE_FEED =
@@ -50,7 +48,6 @@ contract GenericCompound is GenericLenderBase {
     uint256 public minCompToSell;
     uint256 public minCompToClaim;
     address public keep3r;
-    uint256 public dustThreshold;
 
     CErc20I public cToken;
 
@@ -88,7 +85,7 @@ contract GenericCompound is GenericLenderBase {
         IERC20(COMP).safeApprove(address(UNISWAP_ROUTER), type(uint256).max);
         minCompToClaim = 1 ether;
         minCompToSell = 10 ether;
-        // setting dustThreshold is importmant! see values for each asset in conifgtest
+        // setting dust is importmant! see values for each asset in conifgtest
     }
 
     function cloneCompoundLender(
@@ -113,12 +110,13 @@ contract GenericCompound is GenericLenderBase {
      * @return balance in want token value
      */
     function underlyingBalanceStored() public view returns (uint256 balance) {
-        uint256 currentCr = cToken.balanceOf(address(this));
+        (, uint256 currentCr, , uint256 exchangeRate) = cToken.getAccountSnapshot(address(this));
+        // uint256 currentCr = C_ETH.balanceOf(address(this));
         if (currentCr == 0) {
             balance = 0;
         } else {
             //The current exchange rate as an unsigned integer, scaled by 1e18.
-            balance = currentCr.mul(cToken.exchangeRateStored()).div(1e18);
+            balance = currentCr.mul(exchangeRate).div(1e18);
         }
     }
 
@@ -215,7 +213,7 @@ contract GenericCompound is GenericLenderBase {
         }
 
         uint256 toWithdraw = amount.sub(looseBalance);
-        if (toWithdraw > dustThreshold) {
+        if (toWithdraw > dust) {
             // withdraw all available liqudity from compound
             uint256 liquidity = want.balanceOf(address(cToken));
             if (toWithdraw <= liquidity) {
@@ -348,7 +346,7 @@ contract GenericCompound is GenericLenderBase {
 
     function hasAssets() external view override returns (bool) {
         return
-            cToken.balanceOf(address(this)) > dustThreshold ||
+            cToken.balanceOf(address(this)) > dust ||
             want.balanceOf(address(this)) > 0;
     }
 
@@ -423,10 +421,6 @@ contract GenericCompound is GenericLenderBase {
         keep3r = _keep3r;
     }
 
-    function setDustThreshold(uint256 _dustThreshold) external management {
-        dustThreshold = _dustThreshold;
-    }
-
     // ---------------------- YSWAPS FUNCTIONS ----------------------
     function setTradeFactory(address _tradeFactory) external onlyGovernance {
         if (tradeFactory != address(0)) {
@@ -447,7 +441,7 @@ contract GenericCompound is GenericLenderBase {
 
     function _removeTradeFactoryPermissions() internal {
         IERC20(COMP).safeApprove(tradeFactory, 0);
-        
+        ITradeFactory(tradeFactory).disable(COMP, address(want));
         tradeFactory = address(0);
     }
 }

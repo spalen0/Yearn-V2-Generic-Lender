@@ -35,20 +35,18 @@ contract EthCompound is GenericLenderBase {
 
     // eth blocks are mined every 12s -> 3600 * 24 * 365 / 12 = 2_628_000
     uint256 private constant BLOCKS_PER_YEAR = 2_628_000;
-    address public constant COMP =
-        address(0xc00e94Cb662C3520282E6f5717214004A7f26888);
+    address public constant COMP = 0xc00e94Cb662C3520282E6f5717214004A7f26888;
     ComptrollerI public constant COMPTROLLER =
         ComptrollerI(0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B);
     UniswapAnchoredViewI public constant PRICE_FEED =
         UniswapAnchoredViewI(0x65c816077C29b557BEE980ae3cC2dCE80204A0C5);
-    IWETH public constant WETH = IWETH(address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2));
-    CEtherI public constant C_ETH = CEtherI(address(0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5));
+    IWETH public constant WETH = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    CEtherI public constant C_ETH = CEtherI(0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5);
 
     address public tradeFactory;
     uint256 public minCompToSell;
     uint256 public minCompToClaim;
     address public keep3r;
-    uint256 public dustThreshold;
 
     constructor(address _strategy, string memory name) public GenericLenderBase(_strategy, name) {
         require(address(want) == address(WETH), "NOT WETH");
@@ -56,7 +54,7 @@ contract EthCompound is GenericLenderBase {
         minCompToClaim = 1 ether;
         minCompToSell = 10 ether;
         compToEthFee = 3000;
-        dustThreshold = 1e9;
+        dust = 1e9;
     }
 
     //to receive eth from weth
@@ -82,12 +80,12 @@ contract EthCompound is GenericLenderBase {
     }
 
     function underlyingBalanceStored() public view returns (uint256 balance) {
-        uint256 currentCr = C_ETH.balanceOf(address(this));
+        (, uint256 currentCr, , uint256 exchangeRate) = C_ETH.getAccountSnapshot(address(this));
         if (currentCr == 0) {
             balance = 0;
         } else {
             //The current exchange rate as an unsigned integer, scaled by 1e18.
-            balance = currentCr.mul(C_ETH.exchangeRateStored()).div(1e18);
+            balance = currentCr.mul(exchangeRate).div(1e18);
         }
     }
 
@@ -172,7 +170,7 @@ contract EthCompound is GenericLenderBase {
         }
 
         uint256 toWithdraw = amount.sub(looseBalance);
-        if (toWithdraw > dustThreshold) {
+        if (toWithdraw > dust) {
             // withdraw all available liqudity from compound
             uint256 liquidity = C_ETH.getCash();
             if (toWithdraw <= liquidity) {
@@ -292,7 +290,7 @@ contract EthCompound is GenericLenderBase {
 
     function hasAssets() external view override returns (bool) {
         return
-            C_ETH.balanceOf(address(this)) > dustThreshold ||
+            C_ETH.balanceOf(address(this)) > dust ||
             want.balanceOf(address(this)) > 0;
     }
 
@@ -366,8 +364,9 @@ contract EthCompound is GenericLenderBase {
         keep3r = _keep3r;
     }
 
-    function setDustThreshold(uint256 _dustThreshold) external management {
-        dustThreshold = _dustThreshold;
+    function sweepETH() public onlyGovernance {
+        (bool success, ) = vault.governance().call{value: address(this).balance}("");
+        require(success, "!FailedETHSweep");
     }
 
     // ---------------------- YSWAPS FUNCTIONS ----------------------
@@ -390,7 +389,7 @@ contract EthCompound is GenericLenderBase {
 
     function _removeTradeFactoryPermissions() internal {
         IERC20(COMP).safeApprove(tradeFactory, 0);
-
+        ITradeFactory(tradeFactory).disable(COMP, address(want));
         tradeFactory = address(0);
     }
 }

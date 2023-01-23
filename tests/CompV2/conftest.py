@@ -193,7 +193,7 @@ def valueOfCurrencyInDollars(token):
     yield token_prices[token.symbol()]
 
 
-# minimal values for dustThreshold because to fix comptroller revert: redeemTokens zero
+# minimal values for dust because to fix comptroller revert: redeemTokens zero
 # this happens because of when try to withdraw too small
 dust_values = {
     "USDT": 1,
@@ -248,7 +248,7 @@ def strategy(
         strategy.addLender(compoundPlugin, {"from": gov})
         assert strategy.numLenders() == 1
 
-        compoundPlugin.setDustThreshold(dust)
+        compoundPlugin.setDust(dust)
         yield strategy
 
     else:
@@ -260,5 +260,5 @@ def strategy(
         strategy.addLender(compoundPlugin, {"from": gov})
         assert strategy.numLenders() == 1
 
-        compoundPlugin.setDustThreshold(dust)
+        compoundPlugin.setDust(dust)
         yield strategy
