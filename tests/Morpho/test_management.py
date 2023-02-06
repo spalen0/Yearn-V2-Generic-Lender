@@ -111,3 +111,25 @@ def test_setter_functions(
     assert clone.keep3r() == accounts[1]
     assert clone.maxGasForMatching() == max_gas
     assert clone.rewardsDistributor() == rewards_distributor
+
+
+def test_claim_revert(
+    chain,
+    whale,
+    gov,
+    strategist,
+    GenericAaveMorpho,
+    rando,
+    vault,
+    strategy,
+    accounts,
+    pool_token,
+    currency,
+):
+    # Check original values
+    plugin = GenericAaveMorpho.at(strategy.lenders(0))
+
+    plugin.setRewardsDistributor(ZERO_ADDRESS, {"from": strategist})
+    assert plugin.rewardsDistributor() == ZERO_ADDRESS
+    with brownie.reverts("Rewards distributor not set"):
+        plugin.claimMorphoRewards(ZERO_ADDRESS, 100, [], {"from": strategist})

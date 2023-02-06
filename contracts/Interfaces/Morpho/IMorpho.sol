@@ -11,14 +11,24 @@ interface IMorpho {
     }
 
     struct Market {
-        address underlyingToken; // The underlying address of the market.
+        address underlyingToken; // The address of the market's underlying token.
         uint16 reserveFactor; // Proportion of the additional interest earned being matched peer-to-peer on Morpho compared to being on the pool. It is sent to the DAO for each market. The default value is 0. In basis point (100% = 10 000).
         uint16 p2pIndexCursor; // Position of the peer-to-peer rate in the pool's spread. Determine the weights of the weighted arithmetic average in the indexes computations ((1 - p2pIndexCursor) * r^S + p2pIndexCursor * r^B) (in basis point).
         bool isCreated; // Whether or not this market is created.
-        bool isPaused; // Whether the market is paused or not (all entry points on Morpho are frozen; supply, borrow, withdraw, repay and liquidate).
-        bool isPartiallyPaused; // Whether the market is partially paused or not (only supply and borrow are frozen).
-        bool isP2PDisabled; // Whether the market's peer-to-peer is open or not.
+        bool isPaused; // Deprecated.
+        bool isPartiallyPaused; // Deprecated.
+        bool isP2PDisabled; // Whether the peer-to-peer market is open or not.
     }
+    struct MarketPauseStatus {
+        bool isSupplyPaused; // Whether the supply is paused or not.
+        bool isBorrowPaused; // Whether the borrow is paused or not
+        bool isWithdrawPaused; // Whether the withdraw is paused or not. Note that a "withdraw" is still possible using a liquidation (if not paused).
+        bool isRepayPaused; // Whether the repay is paused or not. Note that a "repay" is still possible using a liquidation (if not paused).
+        bool isLiquidateCollateralPaused; // Whether the liquidation on this market as collateral is paused or not.
+        bool isLiquidateBorrowPaused; // Whether the liquidatation on this market as borrow is paused or not.
+        bool isDeprecated; // Whether a market is deprecated or not.
+    }
+
     struct SupplyBalance {
         uint256 inP2P; // In peer-to-peer supply scaled unit, a unit that grows in underlying value, to keep track of the interests earned by suppliers in peer-to-peer. Multiply by the peer-to-peer supply index to get the underlying amount.
         uint256 onPool; // In pool supply scaled unit. Multiply by the pool supply index to get the underlying amount.
@@ -48,4 +58,5 @@ interface IMorpho {
 
     function deltas(address _poolToken) external view returns (Delta memory);
     function market(address _poolToken) external view returns (Market memory);
+    function marketPauseStatus(address) external view returns (MarketPauseStatus memory);
 }

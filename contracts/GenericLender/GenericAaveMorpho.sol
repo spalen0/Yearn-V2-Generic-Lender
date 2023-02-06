@@ -166,24 +166,22 @@ contract GenericAaveMorpho is GenericLenderBase {
         if (amount > total) {
             // cant withdraw more than we own
             amount = total;
-        } 
-        if (looseBalance >= amount) {
-            want.safeTransfer(address(strategy), amount);
-            return amount;
         }
 
-        // if the market is paused we cannot withdraw
-        IMorpho.Market memory market = MORPHO.market(aToken);
-        if (!market.isPaused) {
-            // check if there is enough liquidity in aave
-            uint256 aaveLiquidity = want.balanceOf(address(aToken));
-            if (aaveLiquidity > 1) {
-                // no fear of underflow, withdraw all we need or all liquidity from aave
-                MORPHO.withdraw(aToken, Math.min(amount - looseBalance, aaveLiquidity));
+        if (amount > looseBalance) {
+            // if the market is paused we cannot withdraw
+            IMorpho.MarketPauseStatus memory market = MORPHO.marketPauseStatus(aToken);
+            if (!market.isWithdrawPaused) {
+                // check if there is enough liquidity in aave
+                uint256 aaveLiquidity = want.balanceOf(address(aToken));
+                if (aaveLiquidity > 1) {
+                    // withdraw all we need or all liquidity from aave
+                    MORPHO.withdraw(aToken, Math.min(amount.sub(looseBalance), aaveLiquidity));
+                }
             }
+            // calculate withdrawan balance to new loose balance
+            looseBalance = want.balanceOf(address(this));
         }
-        // calculate withdrawan balance to new loose balance
-        looseBalance = want.balanceOf(address(this));
 
         want.safeTransfer(address(strategy), looseBalance);
         return looseBalance;
@@ -193,27 +191,29 @@ contract GenericAaveMorpho is GenericLenderBase {
      * @notice Supply want balance
      */
     function harvest() external keepers {
-        uint256 wantBalance = want.balanceOf(address(this));
-        if (wantBalance > 0) {
-            MORPHO.supply(
-                aToken,
-                address(this),
-                wantBalance,
-                maxGasForMatching
-            );
-        }
+        _deposit();
     }
 
     /**
      * @notice Supplies free want balance to Morpho
      */
     function deposit() external override management {
-        MORPHO.supply(
-            aToken,
-            address(this),
-            want.balanceOf(address(this)),
-            maxGasForMatching
-        );
+        _deposit();
+    }
+
+    function _deposit() internal {
+        IMorpho.MarketPauseStatus memory market = MORPHO.marketPauseStatus(aToken);
+        if (!market.isSupplyPaused || !market.isWithdrawPaused) {
+            uint256 wantBalance = want.balanceOf(address(this));
+            if (wantBalance > 0) {
+                MORPHO.supply(
+                    aToken,
+                    address(this),
+                    want.balanceOf(address(this)),
+                    maxGasForMatching
+                );
+            }
+        }
     }
 
     /**
@@ -356,6 +356,7 @@ contract GenericAaveMorpho is GenericLenderBase {
         uint256 _claimable,
         bytes32[] calldata _proof
     ) external management {
+        require(rewardsDistributor != address(0), "Rewards distributor not set");
         IRewardsDistributor(rewardsDistributor).claim(
             _account,
             _claimable,
