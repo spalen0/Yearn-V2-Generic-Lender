@@ -24,7 +24,11 @@ def test_rewards(
     strategist_ms,
     GenericCompound,
     comp,
+    has_rewards,
 ):
+    if not has_rewards:
+        return
+
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
     plugin = pluginType.at(strategy.lenders(0))
@@ -333,7 +337,10 @@ def test_rewards_calculation_and_claim(
     strategist_ms,
     EthCompound,
     comp,
+    has_rewards,
 ):
+    if not has_rewards:
+        return
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
     plugin = pluginType.at(strategy.lenders(0))
@@ -396,7 +403,9 @@ def test_rewards_calculation_and_claim(
     assert rewardsBalance > pendingRewards and rewardsBalance < pendingRewards * 1.35
 
 
-def test_rewards_apr(strategy, pluginType, currency):
+def test_rewards_apr(strategy, pluginType, currency, has_rewards):
+    if not has_rewards:
+        return
     plugin = pluginType.at(strategy.lenders(0))
     # get apr in percentage (100 / 1e18)
     apr = plugin.getRewardAprForSupplyBase(0) / 1e16

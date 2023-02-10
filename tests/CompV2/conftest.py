@@ -41,12 +41,12 @@ token_addresses = {
 @pytest.fixture(
     params=[
         "USDC",
-        # "USDT",
-        # "DAI",
-        # "LINK",
-        # "UNI",
-        # "AAVE",
-        # "TUSD",
+        "USDT",
+        "DAI",
+        "LINK",
+        "UNI",
+        "AAVE",
+        "TUSD",
         "WETH",
     ],
     scope="session",
@@ -210,6 +210,23 @@ dust_values = {
 @pytest.fixture
 def dust(token):
     yield dust_values[token.symbol()]
+
+
+rewards_values = {
+    "USDT": True,
+    "USDC": True,
+    "DAI": True,
+    "LINK": False,
+    "UNI": False,
+    "AAVE": False,
+    "TUSD": False,
+    "WETH": False,
+}
+
+
+@pytest.fixture
+def has_rewards(token):
+    yield rewards_values[token.symbol()]
 
 
 @pytest.fixture

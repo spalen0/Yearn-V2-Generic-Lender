@@ -127,3 +127,53 @@ def test_withdrawals_work(
     balanceAfter = currency.balanceOf(whale)
     withdrawn = balanceAfter - balanceBefore
     assert withdrawn > expectedout * 0.99 and withdrawn < expectedout * 1.01
+
+
+def test_withdraw_takes_excess_eth(
+    interface,
+    chain,
+    whale,
+    gov,
+    strategist,
+    rando,
+    vault,
+    strategy,
+    currency,
+    dust,
+    valueOfCurrencyInDollars,
+    weth,
+    pluginType,
+    EthCompound,
+):
+    plugin = pluginType.at(strategy.lenders(0))
+    if plugin != EthCompound:
+        return
+
+    eth_amount = 10 * 1e18
+    weth.withdraw(eth_amount, {"from": whale})
+
+    whale.transfer(plugin, eth_amount)
+    assert plugin.balance() == eth_amount
+
+    starting_balance = currency.balanceOf(strategist)
+    decimals = currency.decimals()
+
+    currency.approve(vault, 2**256 - 1, {"from": whale})
+    currency.approve(vault, 2**256 - 1, {"from": strategist})
+
+    deposit_limit = 1_000_000_000 * 10**decimals
+    debt_ratio = 10000
+    vault.addStrategy(strategy, debt_ratio, 0, 2**256 - 1, 500, {"from": gov})
+    vault.setDepositLimit(deposit_limit, {"from": gov})
+
+    status = strategy.lendStatuses()
+    depositAmount = 50_100 * 10**decimals
+    vault.deposit(depositAmount, {"from": strategist})
+
+    chain.sleep(1)
+    strategy.harvest({"from": strategist})
+
+    assert currency.balanceOf(strategy) == 0
+    withdraw_amount = 1 * 1e18
+    plugin.withdraw(withdraw_amount, {"from": gov})
+    assert currency.balanceOf(strategy) == withdraw_amount + eth_amount

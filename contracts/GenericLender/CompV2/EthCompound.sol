@@ -23,7 +23,6 @@ import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
  ********************* */
 
 contract EthCompound is GenericLenderBase {
-    using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
 
@@ -81,12 +80,7 @@ contract EthCompound is GenericLenderBase {
 
     function underlyingBalanceStored() public view returns (uint256 balance) {
         (, uint256 currentCr, , uint256 exchangeRate) = C_ETH.getAccountSnapshot(address(this));
-        if (currentCr == 0) {
-            balance = 0;
-        } else {
-            //The current exchange rate as an unsigned integer, scaled by 1e18.
-            balance = currentCr.mul(exchangeRate).div(1e18);
-        }
+        balance = currentCr.mul(exchangeRate).div(1e18);
     }
 
     function apr() external view override returns (uint256) {
@@ -267,7 +261,7 @@ contract EthCompound is GenericLenderBase {
         uint256 /*callCost*/
     ) external view returns (bool) {
         if (!isBaseFeeAcceptable()) return false;
-        if (IERC20(COMP).balanceOf(address(this)).add(getRewardsPending()) > minCompToClaim) return true;
+        return IERC20(COMP).balanceOf(address(this)).add(getRewardsPending()) > minCompToClaim;
     }
 
     function deposit() external override management {
@@ -362,11 +356,6 @@ contract EthCompound is GenericLenderBase {
 
     function setKeep3r(address _keep3r) external management {
         keep3r = _keep3r;
-    }
-
-    function sweepETH() public onlyGovernance {
-        (bool success, ) = vault.governance().call{value: address(this).balance}("");
-        require(success, "!FailedETHSweep");
     }
 
     // ---------------------- YSWAPS FUNCTIONS ----------------------
