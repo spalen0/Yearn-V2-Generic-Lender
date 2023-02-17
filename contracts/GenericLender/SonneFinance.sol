@@ -35,8 +35,6 @@ contract SonneFinance is GenericLenderBase {
     address internal constant SONNE = 0x1DB2466d9F5e10D7090E7152B68d62703a2245F0;
     ComptrollerI public constant COMPTROLLER =
         ComptrollerI(0x60CF091cD3f50420d50fD7f707414d0DF4751C58);
-    IPriceOracle public constant PRICE_FEED =
-        IPriceOracle(0xEFc0495DA3E48c5A55F73706b249FD49d711A502);
 
     uint256 public minCompToSell;
     uint256 public minCompToClaim;
@@ -141,13 +139,13 @@ contract SonneFinance is GenericLenderBase {
         // Approximate SONNE issued per year to suppliers * (1 * 10 ^ 18)
         uint256 compSpeedPerYear = compSpeedPerBlock * BLOCKS_PER_YEAR;
 
-        // The price of the asset in USD as an unsigned integer scaled up by 10 ^ 6 // TODO: see return value scale
-        uint256 rewardTokenPriceInUsd = 8 * 1e4; // PRICE_FEED.getUnderlyingPrice(USDC); // TODO: define price via velodrome
+        // The price of the asset in USDC, 10 ^ 6 
+        (uint256 rewardTokenPriceInUsd, ) = VELODROME_ROUTER.getAmountOut(1 ether, SONNE, USDC);
 
         // https://docs.compound.finance/v2/prices/#underlying-price
         // The price of the asset in USD as an unsigned integer scaled up by 10 ^ (36 - underlying asset decimals)
-        // upscale to price SONNE percision 10 ^ 6
-        uint256 wantPriceInUsd = PRICE_FEED.getUnderlyingPrice(address(cToken)) // TODO: see return value scale
+        uint256 wantPriceInUsd = IPriceOracle(COMPTROLLER.oracle())
+            .getUnderlyingPrice(address(cToken)) // TODO: see return value scale
             .div(10 ** (30 - vault.decimals()));
 
         uint256 cTokenTotalSupplyInWant = cToken.totalSupply().mul(cToken.exchangeRateStored()).div(1e18);

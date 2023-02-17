@@ -19,19 +19,19 @@ token_addresses = {
     "USDC": "0x7f5c764cbc14f9669b88837ca1490cca17c31607",
     "OP": "0x4200000000000000000000000000000000000042",
     "WBTC": "0x68f180fcce6836688e9084f035309e29bf0a2095",
-    "WETH": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "WETH": "0x4200000000000000000000000000000000000006",
 }
 
 
 # TODO: uncomment those tokens you want to test as want
 @pytest.fixture(
     params=[
-        "USDC",
+        # "USDC",
         # "USDT",
         # "DAI",
         # "OP",
         # "WBTC",
-        # "WETH",
+        "WETH",
     ],
     scope="session",
     autouse=True,
@@ -66,7 +66,7 @@ whale_addresses = {
     "DAI": "0x5569b83de187375d43FBd747598bfe64fC8f6436",
     "OP": "0x2501c477d0a35545a387aa4a3eee4292a9a8b3f0",
     "WBTC": "0x33865e09a572d4f1cc4d75afc9abcc5d3d4d867d",
-    "WETH": "0xf7B5965f5C117Eb1B5450187c9DcFccc3C317e8E",
+    "WETH": "0x6202a3b0be1d222971e93aab084c6e584c29db70",
 }
 
 
@@ -161,8 +161,8 @@ token_prices = {
     "USDC": 1,
     "DAI": 1,
     "OP": 8,
-    "WBTC": 7,
-    "WETH": 1_600,
+    "WBTC": 24_000,
+    "WETH": 1_800,
 }
 
 
@@ -178,7 +178,7 @@ dust_values = {
     "USDC": 1,
     "DAI": 1e9,
     "OP": 1e9,
-    "WBTC": 1e9,
+    "WBTC": 1,
     "WETH": 1e9,
 }
 

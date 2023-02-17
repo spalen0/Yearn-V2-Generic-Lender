@@ -10,75 +10,53 @@ interface IVelodromeRouter {
         bool stable;
     }
 
-    function factory() external pure returns (address);
+    function sortTokens(address tokenA, address tokenB) external pure returns (address token0, address token1);
 
-    function WETH() external pure returns (address);
+    // calculates the CREATE2 address for a pair without making any external calls
+    function pairFor(address tokenA, address tokenB, bool stable) external view returns (address pair);
+
+    // fetches and sorts the reserves for a pair
+    function getReserves(address tokenA, address tokenB, bool stable) external view returns (uint reserveA, uint reserveB);
+
+    // performs chained getAmountOut calculations on any number of pairs
+    function getAmountOut(uint amountIn, address tokenIn, address tokenOut) external view returns (uint amount, bool stable);
+
+    // performs chained getAmountOut calculations on any number of pairs
+    function getAmountsOut(uint amountIn, route[] memory routes) external view returns (uint[] memory amounts);
+
+    function isPair(address pair) external view returns (bool);
+
+    function swapExactTokensForTokensSimple(
+        uint amountIn,
+        uint amountOutMin,
+        address tokenFrom,
+        address tokenTo,
+        bool stable,
+        address to,
+        uint deadline
+    ) external returns (uint[] memory amounts);
 
     function swapExactTokensForTokens(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        route[] calldata path,
+        uint amountIn,
+        uint amountOutMin,
+        route[] calldata routes,
         address to,
-        uint256 deadline
-    ) external returns (uint256[] memory amounts);
+        uint deadline
+    ) external returns (uint[] memory amounts);
 
-    function swapTokensForExactTokens(
-        uint256 amountOut,
-        uint256 amountInMax,
-        route[] calldata path,
+    function swapExactETHForTokens(uint amountOutMin, route[] calldata routes, address to, uint deadline)
+        external
+        payable
+        returns (uint[] memory amounts);
+
+    function swapExactTokensForETH(uint amountIn, uint amountOutMin, route[] calldata routes, address to, uint deadline)
+        external
+        returns (uint[] memory amounts);
+
+    function UNSAFE_swapExactTokensForTokens(
+        uint[] memory amounts,
+        route[] calldata routes,
         address to,
-        uint256 deadline
-    ) external returns (uint256[] memory amounts);
-
-    function swapExactETHForTokens(
-        uint256 amountOutMin,
-        route[] calldata path,
-        address to,
-        uint256 deadline
-    ) external payable returns (uint256[] memory amounts);
-
-    function swapTokensForExactETH(
-        uint256 amountOut,
-        uint256 amountInMax,
-        route[] calldata path,
-        address to,
-        uint256 deadline
-    ) external returns (uint256[] memory amounts);
-
-    function swapExactTokensForETH(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        route[] calldata path,
-        address to,
-        uint256 deadline
-    ) external returns (uint256[] memory amounts);
-
-    function swapETHForExactTokens(
-        uint256 amountOut,
-        route[] calldata path,
-        address to,
-        uint256 deadline
-    ) external payable returns (uint256[] memory amounts);
-
-    function quote(
-        uint256 amountA,
-        uint256 reserveA,
-        uint256 reserveB
-    ) external pure returns (uint256 amountB);
-
-    function getAmountOut(
-        uint256 amountIn,
-        uint256 reserveIn,
-        uint256 reserveOut
-    ) external pure returns (uint256 amountOut);
-
-    function getAmountIn(
-        uint256 amountOut,
-        uint256 reserveIn,
-        uint256 reserveOut
-    ) external pure returns (uint256 amountIn);
-
-    function getAmountsOut(uint256 amountIn, route[] calldata path) external view returns (uint256[] memory amounts);
-
-    function getAmountsIn(uint256 amountOut, route[] calldata path) external view returns (uint256[] memory amounts);
+        uint deadline
+    ) external returns (uint[] memory);
 }

@@ -100,65 +100,64 @@ def test_rewards(
     vault.withdraw({"from": strategist})
 
 
-# def test_no_rewards(
-#     Strategy,
-#     chain,
-#     whale,
-#     gov,
-#     strategist,
-#     vault,
-#     strategy,
-#     pluginType,
-#     currency,
-#     comp,
-# ):
-#     starting_balance = currency.balanceOf(strategist)
-#     decimals = currency.decimals()
-#     plugin = pluginType.at(strategy.lenders(0))
+def test_no_rewards(
+    chain,
+    whale,
+    gov,
+    strategist,
+    vault,
+    strategy,
+    currency,
+    SonneFinance,
+    comp,
+):
+    starting_balance = currency.balanceOf(strategist)
+    decimals = currency.decimals()
+    plugin = SonneFinance.at(strategy.lenders(0))
 
-#     currency.approve(vault, 2**256 - 1, {"from": whale})
-#     currency.approve(vault, 2**256 - 1, {"from": strategist})
+    currency.approve(vault, 2**256 - 1, {"from": whale})
+    currency.approve(vault, 2**256 - 1, {"from": strategist})
 
-#     deposit_limit = 1_000_000_000 * (10 ** (decimals))
-#     debt_ratio = 10_000
-#     vault.addStrategy(strategy, debt_ratio, 0, 2**256 - 1, 500, {"from": gov})
-#     vault.setDepositLimit(deposit_limit, {"from": gov})
+    deposit_limit = 1_000_000_000 * (10 ** (decimals))
+    debt_ratio = 10_000
+    vault.addStrategy(strategy, debt_ratio, 0, 2**256 - 1, 500, {"from": gov})
+    vault.setDepositLimit(deposit_limit, {"from": gov})
 
-#     assert deposit_limit == vault.depositLimit()
-#     # our humble strategist deposits some test funds
-#     depositAmount = 501 * (10 ** (decimals))
-#     vault.deposit(depositAmount, {"from": strategist})
+    assert deposit_limit == vault.depositLimit()
+    # our humble strategist deposits some test funds
+    depositAmount = 501 * (10 ** (decimals))
+    vault.deposit(depositAmount, {"from": strategist})
 
-#     assert strategy.estimatedTotalAssets() == 0
-#     chain.mine(1)
-#     assert strategy.harvestTrigger(1) == True
+    assert strategy.estimatedTotalAssets() == 0
+    chain.mine(1)
+    assert strategy.harvestTrigger(1) == True
 
-#     chain.sleep(1)
-#     tx = strategy.harvest({"from": strategist})
-#     assert plugin.harvestTrigger(10) == False
+    chain.sleep(1)
+    tx = strategy.harvest({"from": strategist})
+    assert plugin.harvestTrigger(10) == False
 
-#     assert (
-#         strategy.estimatedTotalAssets() >= depositAmount * 0.999999
-#     )  # losing some dust is ok
+    assert (
+        strategy.estimatedTotalAssets() >= depositAmount * 0.999999
+    )  # losing some dust is ok
 
-#     assert strategy.harvestTrigger(1) == False
-#     assert plugin.harvestTrigger(10) == False
+    assert strategy.harvestTrigger(1) == False
+    assert plugin.harvestTrigger(10) == False
 
-#     # whale deposits as well
-#     whale_deposit = 100_000 * (10 ** (decimals))
-#     vault.deposit(whale_deposit, {"from": whale})
-#     assert strategy.harvestTrigger(1000) == True
-#     assert plugin.harvestTrigger(10) == False
-#     chain.sleep(1)
-#     # harvest should work without rewards
-#     tx = strategy.harvest({"from": strategist})
+    # whale deposits as well
+    whale_deposit = 100_000 * (10 ** (decimals))
+    vault.deposit(whale_deposit, {"from": whale})
+    assert strategy.harvestTrigger(1000) == True
+    assert plugin.harvestTrigger(10) == False
+    chain.sleep(1)
+    # harvest should work without rewards
+    tx = strategy.harvest({"from": strategist})
 
-#     assert plugin.harvestTrigger(10) == False
-#     assert comp.balanceOf(plugin) == 0
+    assert plugin.harvestTrigger(10) == False
+    assert comp.balanceOf(plugin) == 0
 
-#     # should still be able to call harvest
-#     chain.sleep(1)
-#     plugin.harvest({"from": strategist})
+    # should still be able to call harvest
+    chain.sleep(1)
+    plugin.harvest({"from": strategist})
 
 
 def test_rewards_calculation_and_claim(
@@ -223,6 +222,10 @@ def test_rewards_calculation_and_claim(
     # wait for rewards to accumulate
     chain.sleep(3600 * 24 * 100)
 
+    # somebody else, not strategy, deposited to cToken to trigger rewards calculations
+    currency.approve(compCurrency, 2**256 - 1, {"from": whale})
+    compCurrency.mint(10 * (10 ** (decimals)), {"from": whale})
+
     pendingRewards = plugin.getRewardsPending()
     assert pendingRewards > minCompToClaim
     assert plugin.harvestTrigger(10) == True
@@ -232,8 +235,7 @@ def test_rewards_calculation_and_claim(
     assert plugin.getRewardsPending() == 0
     # verify calculating pending rewards is ok
     rewardsBalance = comp.balanceOf(plugin.address)
-    # ETH has higher difference between claimed(higher) and calculated(lower)
-    assert rewardsBalance > pendingRewards and rewardsBalance < pendingRewards * 1.35
+    assert rewardsBalance >= pendingRewards and rewardsBalance < pendingRewards * 1.1
 
 
 def test_rewards_apr(strategy, SonneFinance, currency, has_rewards):
@@ -242,7 +244,7 @@ def test_rewards_apr(strategy, SonneFinance, currency, has_rewards):
     plugin = SonneFinance.at(strategy.lenders(0))
     # get apr in percentage (100 / 1e18)
     apr = plugin.getRewardAprForSupplyBase(0) / 1e16
-    # for current apr visit compound website: https://v2-app.compound.finance/
+    # for current apr visit sonne website: https://sonne.finance/
     assert apr < 1 # all rewards are less than 1%
     assert apr > 0.1 # all rewards are higher than 0.1%
     # supplying more capital should reward in small rewards
