@@ -27,11 +27,11 @@ token_addresses = {
 @pytest.fixture(
     params=[
         # "USDC",
-        # "USDT",
-        # "DAI",
-        # "OP",
-        # "WBTC",
-        "WETH",
+        "USDT",
+        "DAI",
+        # "OP", # check why it won't start
+        # "WBTC", # need to set lower amounts
+        # "WETH", # need to set lower amounts
     ],
     scope="session",
     autouse=True,
@@ -62,9 +62,9 @@ def compCurrency(interface, token):
 
 whale_addresses = {
     "USDC": "0xebe80f029b1c02862b9e8a70a7e5317c06f62cae",
-    "USDT": "0x85faa6c1f2450b9caea300838981c2e6e120c35c",
-    "DAI": "0x5569b83de187375d43FBd747598bfe64fC8f6436",
-    "OP": "0x2501c477d0a35545a387aa4a3eee4292a9a8b3f0",
+    "USDT": "0x0d0707963952f2fba59dd06f2b425ace40b492fe",
+    "DAI": "0xad32aa4bff8b61b4ae07e3ba437cf81100af0cd7",
+    "OP": "0x2a82ae142b2e62cb7d10b55e323acb1cab663a26",
     "WBTC": "0x33865e09a572d4f1cc4d75afc9abcc5d3d4d867d",
     "WETH": "0x6202a3b0be1d222971e93aab084c6e584c29db70",
 }

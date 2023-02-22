@@ -394,7 +394,7 @@ def test_apr(
         strState = vault.strategies(strategy)
         totalGains = strState[7]  # get strategy reported total gains
 
-        blocks_per_year = 2_252_857 # TODO: see if this is the correct value
+        blocks_per_year = 31_536_000
         assert startingBalance != 0
         time = (i + 1) * waitBlock
         assert time != 0

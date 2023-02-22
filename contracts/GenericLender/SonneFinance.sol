@@ -29,8 +29,8 @@ contract SonneFinance is GenericLenderBase {
     IVelodromeRouter internal constant VELODROME_ROUTER =
         IVelodromeRouter(0x9c12939390052919aF3155f41Bf4160Fd3666A6f);
 
-    // eth blocks are mined every 12s -> 3600 * 24 * 365 / 12 = 2_628_000
-    uint256 private constant BLOCKS_PER_YEAR = 2_628_000;
+    // Sonne Finance uses distribution per seconds instead of blocks
+    uint256 private constant BLOCKS_PER_YEAR = 31_536_000; 
     address internal constant USDC = 0x7F5c764cBc14f9669B88837ca1490cCa17c31607;
     address internal constant SONNE = 0x1DB2466d9F5e10D7090E7152B68d62703a2245F0;
     ComptrollerI public constant COMPTROLLER =
@@ -139,14 +139,14 @@ contract SonneFinance is GenericLenderBase {
         // Approximate SONNE issued per year to suppliers * (1 * 10 ^ 18)
         uint256 compSpeedPerYear = compSpeedPerBlock * BLOCKS_PER_YEAR;
 
-        // The price of the asset in USDC, 10 ^ 6 
+        // The price of the asset in USD as an unsigned integer scaled up by 10 ^ 6
         (uint256 rewardTokenPriceInUsd, ) = VELODROME_ROUTER.getAmountOut(1 ether, SONNE, USDC);
 
         // https://docs.compound.finance/v2/prices/#underlying-price
         // The price of the asset in USD as an unsigned integer scaled up by 10 ^ (36 - underlying asset decimals)
         uint256 wantPriceInUsd = IPriceOracle(COMPTROLLER.oracle())
-            .getUnderlyingPrice(address(cToken)) // TODO: see return value scale
-            .div(10 ** (30 - vault.decimals()));
+            .getUnderlyingPrice(address(cToken))
+            .div(10 ** (30 - vault.decimals())); // 36 - 6 (for rewardTokenPriceInUsd) - underlying decimals
 
         uint256 cTokenTotalSupplyInWant = cToken.totalSupply().mul(cToken.exchangeRateStored()).div(1e18);
 

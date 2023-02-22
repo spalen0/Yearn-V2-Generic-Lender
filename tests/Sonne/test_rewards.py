@@ -245,7 +245,7 @@ def test_rewards_apr(strategy, SonneFinance, currency, has_rewards):
     # get apr in percentage (100 / 1e18)
     apr = plugin.getRewardAprForSupplyBase(0) / 1e16
     # for current apr visit sonne website: https://sonne.finance/
-    assert apr < 1 # all rewards are less than 1%
+    assert apr < 10 # all rewards are less than 10%
     assert apr > 0.1 # all rewards are higher than 0.1%
     # supplying more capital should reward in small rewards
     assert plugin.getRewardAprForSupplyBase(0) > plugin.getRewardAprForSupplyBase(100* 10 ** currency.decimals())
