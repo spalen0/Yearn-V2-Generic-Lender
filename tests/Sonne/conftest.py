@@ -26,12 +26,12 @@ token_addresses = {
 # TODO: uncomment those tokens you want to test as want
 @pytest.fixture(
     params=[
-        # "USDC",
+        "USDC",
         "USDT",
         "DAI",
         # "OP", # check why it won't start
-        # "WBTC", # need to set lower amounts
-        # "WETH", # need to set lower amounts
+        # "WBTC",
+        "WETH",
     ],
     scope="session",
     autouse=True,
@@ -87,9 +87,8 @@ def comp():
 
 
 @pytest.fixture()
-def strategist(accounts, whale, currency):
-    decimals = currency.decimals()
-    currency.transfer(accounts[1], 100_000 * (10**decimals), {"from": whale})
+def strategist(accounts, whale, currency, amount):
+    currency.transfer(accounts[1], amount / 10, {"from": whale})
     yield accounts[1]
 
 
@@ -132,7 +131,7 @@ def rando(accounts):
 
 @pytest.fixture
 def strategist_ms(accounts):
-        # like governance, but better
+    # like governance, but better
     yield accounts.at("0x16388463d60FFE0661Cf7F1f31a7D658aC790ff7", force=True)
 
 
@@ -164,6 +163,19 @@ token_prices = {
     "WBTC": 24_000,
     "WETH": 1_800,
 }
+
+
+@pytest.fixture(autouse=True)
+def amount(token, whale):
+    # this will get the number of tokens (around $1m worth of token)
+    million = round(1_000_000 / token_prices[token.symbol()])
+    amount = million * 10 ** token.decimals()
+    # # In order to get some funds for the token you are about to use,
+    # # it impersonate a whale address
+    if amount > token.balanceOf(whale):
+        amount = token.balanceOf(whale)
+    # token.transfer(user, amount, {"from": token_whale})
+    yield amount
 
 
 @pytest.fixture
@@ -215,6 +227,7 @@ def strategy(
     currency,
     compCurrency,
     dust,
+    amount,
 ):
     strategy = strategist.deploy(OptStrategy, vault)
     strategy.setKeeper(keeper, {"from": gov})

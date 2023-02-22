@@ -13,22 +13,21 @@ def test_manual_override(
     strategist,
     gov,
     rando,
+    amount,
 ):
-
     decimals = currency.decimals()
 
     deposit_limit = 100_000_000 * (10**decimals)
     vault.addStrategy(strategy, 9800, 0, 2**256 - 1, 500, {"from": gov})
 
-    amount1 = 50 * (10**decimals)
     currency.approve(vault, 2**256 - 1, {"from": whale})
     currency.approve(vault, 2**256 - 1, {"from": strategist})
 
     vault.setDepositLimit(deposit_limit, {"from": gov})
     assert vault.depositLimit() > 0
 
-    amount2 = 50_000 * (10**decimals)
-
+    amount1 = amount / 1000
+    amount2 = amount / 10
     vault.deposit(amount1, {"from": strategist})
     vault.deposit(amount2, {"from": whale})
 

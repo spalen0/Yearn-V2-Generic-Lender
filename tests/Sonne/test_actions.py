@@ -15,6 +15,7 @@ def test_good_migration(
     vault,
     strategy,
     currency,
+    amount,
 ):
     decimals = currency.decimals()
     currency.approve(vault, 2**256 - 1, {"from": whale})
@@ -25,11 +26,10 @@ def test_good_migration(
     vault.addStrategy(strategy, debt_ratio, 0, 2**256 - 1, 500, {"from": gov})
     vault.setDepositLimit(deposit_limit, {"from": gov})
 
-    amount1 = 500 * 1e6
+    amount1 = amount / 100
     vault.deposit(amount1, {"from": whale})
-
-    amount1 = 50 * 1e6
-    vault.deposit(amount1, {"from": strategist})
+    amount2 = amount / 1000
+    vault.deposit(amount2, {"from": strategist})
 
     chain.sleep(1)
     strategy.harvest({"from": strategist})
@@ -71,6 +71,7 @@ def test_normal_activity(
     vault,
     strategy,
     currency,
+    amount,
 ):
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
@@ -85,7 +86,7 @@ def test_normal_activity(
 
     assert deposit_limit == vault.depositLimit()
     # our humble strategist deposits some test funds
-    depositAmount = 501 * (10 ** (decimals))
+    depositAmount = amount / 100
     vault.deposit(depositAmount, {"from": strategist})
 
     assert strategy.estimatedTotalAssets() == 0
@@ -102,7 +103,7 @@ def test_normal_activity(
     assert strategy.harvestTrigger(1) == False
 
     # whale deposits as well
-    whale_deposit = 100_000 * (10 ** (decimals))
+    whale_deposit = amount / 10
     vault.deposit(whale_deposit, {"from": whale})
     assert strategy.harvestTrigger(1000) == True
 
@@ -183,6 +184,7 @@ def test_debt_increase(
     vault,
     strategy,
     currency,
+    amount,
 ):
     decimals = currency.decimals()
     currency.approve(vault, 2**256 - 1, {"from": whale})
@@ -193,7 +195,7 @@ def test_debt_increase(
     vault.setDepositLimit(deposit_limit, {"from": gov})
     form = "{:.2%}"
     formS = "{:,.0f}"
-    firstDeposit = 2000_000 * 1e6
+    firstDeposit = amount / 10
     predictedApr = strategy.estimatedFutureAPR(firstDeposit)
     print(
         f"Predicted APR from {formS.format(firstDeposit/1e6)} deposit:"
@@ -248,6 +250,7 @@ def test_vault_shares(
     interface,
     whale,
     strategist,
+    amount,
 ):
     decimals = currency.decimals()
     deposit_limit = 100_000_000 * (10**decimals)
@@ -255,7 +258,7 @@ def test_vault_shares(
     vault.addStrategy(strategy, debt_ratio, 0, 2**256 - 1, 500, {"from": gov})
     vault.setDepositLimit(deposit_limit, {"from": gov})
     decimals = currency.decimals()
-    amount1 = 100_000 * 10**decimals
+    amount1 = amount / 100
 
     currency.approve(vault, 2**256 - 1, {"from": whale})
     currency.approve(vault, 2**256 - 1, {"from": strategist})
@@ -349,7 +352,8 @@ def test_apr(
     interface,
     whale,
     strategist,
-    SonneFinance
+    SonneFinance,
+    amount,
 ):
     decimals = currency.decimals()
     deposit_limit = 100_000_000 * (10**decimals)
@@ -361,8 +365,8 @@ def test_apr(
     currency.approve(vault, 2**256 - 1, {"from": whale})
     currency.approve(vault, 2**256 - 1, {"from": gov})
 
-    amount1 = 10_000 * (10**decimals)
-    amount2 = 50_000 * (10**decimals)
+    amount1 = amount / 1000
+    amount2 = amount / 10
     vault.deposit(amount1, {"from": gov})
     vault.deposit(amount2, {"from": whale})
 

@@ -18,6 +18,7 @@ def test_withdrawals_work(
     currency,
     dust,
     valueOfCurrencyInDollars,
+    amount,
 ):
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
@@ -31,11 +32,11 @@ def test_withdrawals_work(
     vault.setDepositLimit(deposit_limit, {"from": gov})
 
     status = strategy.lendStatuses()
-    depositAmount = 50_100 * 10**decimals
+    depositAmount = amount / 1000
     vault.deposit(depositAmount, {"from": strategist})
 
     # whale deposits as well
-    whale_deposit = 200_000 * 10**decimals
+    whale_deposit = amount / 10
     vault.deposit(whale_deposit, {"from": whale})
 
     chain.sleep(1)

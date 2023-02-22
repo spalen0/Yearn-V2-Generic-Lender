@@ -23,6 +23,7 @@ def test_rewards(
     SonneFinance,
     comp,
     has_rewards,
+    amount,
 ):
     if not has_rewards:
         return
@@ -42,7 +43,7 @@ def test_rewards(
 
     assert deposit_limit == vault.depositLimit()
     # our humble strategist deposits some test funds
-    depositAmount = 501 * (10 ** (decimals))
+    depositAmount = amount / 100
     vault.deposit(depositAmount, {"from": strategist})
 
     assert strategy.estimatedTotalAssets() == 0
@@ -61,7 +62,7 @@ def test_rewards(
     assert plugin.harvestTrigger(10) == False
 
     # whale deposits as well
-    whale_deposit = 100_000 * (10 ** (decimals))
+    whale_deposit = amount / 10
     vault.deposit(whale_deposit, {"from": whale})
     assert strategy.harvestTrigger(1000) == True
     assert plugin.harvestTrigger(10) == False
@@ -110,6 +111,7 @@ def test_no_rewards(
     currency,
     SonneFinance,
     comp,
+    amount,
 ):
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
@@ -125,7 +127,7 @@ def test_no_rewards(
 
     assert deposit_limit == vault.depositLimit()
     # our humble strategist deposits some test funds
-    depositAmount = 501 * (10 ** (decimals))
+    depositAmount = amount / 100
     vault.deposit(depositAmount, {"from": strategist})
 
     assert strategy.estimatedTotalAssets() == 0
@@ -144,7 +146,7 @@ def test_no_rewards(
     assert plugin.harvestTrigger(10) == False
 
     # whale deposits as well
-    whale_deposit = 100_000 * (10 ** (decimals))
+    whale_deposit = amount / 10
     vault.deposit(whale_deposit, {"from": whale})
     assert strategy.harvestTrigger(1000) == True
     assert plugin.harvestTrigger(10) == False
@@ -177,6 +179,7 @@ def test_rewards_calculation_and_claim(
     SonneFinance,
     comp,
     has_rewards,
+    amount,
 ):
     if not has_rewards:
         return
@@ -195,7 +198,7 @@ def test_rewards_calculation_and_claim(
 
     assert deposit_limit == vault.depositLimit()
     # our humble strategist deposits some test funds
-    depositAmount = 501 * (10 ** (decimals))
+    depositAmount = amount / 100
     vault.deposit(depositAmount, {"from": strategist})
 
     assert strategy.estimatedTotalAssets() == 0
@@ -215,7 +218,7 @@ def test_rewards_calculation_and_claim(
     plugin.setRewardStuff(minCompToSell, minCompToClaim, {"from": strategist})
 
     # whale deposits as well
-    whale_deposit = 100_000 * (10 ** (decimals))
+    whale_deposit = amount / 10
     vault.deposit(whale_deposit, {"from": whale})
     chain.sleep(1)
 
