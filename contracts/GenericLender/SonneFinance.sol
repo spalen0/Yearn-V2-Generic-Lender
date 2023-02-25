@@ -30,7 +30,7 @@ contract SonneFinance is GenericLenderBase {
         IVelodromeRouter(0x9c12939390052919aF3155f41Bf4160Fd3666A6f);
 
     // Sonne Finance uses distribution per seconds instead of blocks
-    uint256 private constant BLOCKS_PER_YEAR = 31_536_000; 
+    uint256 internal constant BLOCKS_PER_YEAR = 31_536_000;
     address internal constant USDC = 0x7F5c764cBc14f9669B88837ca1490cCa17c31607;
     address internal constant SONNE = 0x1DB2466d9F5e10D7090E7152B68d62703a2245F0;
     ComptrollerI public constant COMPTROLLER =
@@ -231,7 +231,7 @@ contract SonneFinance is GenericLenderBase {
                 path = new IVelodromeRouter.route[](1);
                 path[0] = IVelodromeRouter.route({
                     from: SONNE,
-                    to: address(want),
+                    to: USDC,
                     stable: false
                 });
             } else {
