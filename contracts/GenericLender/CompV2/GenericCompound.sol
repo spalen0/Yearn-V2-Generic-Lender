@@ -36,11 +36,8 @@ contract GenericCompound is GenericLenderBase {
     // eth blocks are mined every 12s -> 3600 * 24 * 365 / 12 = 2_628_000
     uint256 private constant BLOCKS_PER_YEAR = 2_628_000;
     address internal constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address internal constant COMP = 0xc00e94Cb662C3520282E6f5717214004A7f26888;
-    ComptrollerI public constant COMPTROLLER =
-        ComptrollerI(0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B);
-    UniswapAnchoredViewI public constant PRICE_FEED =
-        UniswapAnchoredViewI(0x65c816077C29b557BEE980ae3cC2dCE80204A0C5);
+    address public COMP;
+    ComptrollerI public COMPTROLLER;
 
     address public tradeFactory;
     uint256 public minCompToSell;
@@ -79,6 +76,8 @@ contract GenericCompound is GenericLenderBase {
         );
         cToken = CErc20I(_cToken);
         require(cToken.underlying() == address(want), "WRONG CTOKEN");
+        COMPTROLLER = ComptrollerI(cToken.comptroller());
+        COMP = COMPTROLLER.getCompAddress();
         want.safeApprove(_cToken, type(uint256).max);
         IERC20(COMP).safeApprove(address(UNISWAP_ROUTER), type(uint256).max);
         minCompToClaim = 1 ether;
@@ -118,49 +117,12 @@ contract GenericCompound is GenericLenderBase {
 
     // scaled by 1e18
     function _apr() internal view returns (uint256) {
-        uint256 baseApr = cToken.supplyRatePerBlock().mul(BLOCKS_PER_YEAR);
-        uint256 rewardsApr = getRewardAprForSupplyBase(0);
-        return baseApr.add(rewardsApr);
+        return cToken.supplyRatePerBlock().mul(BLOCKS_PER_YEAR);
     }
 
     function weightedApr() external view override returns (uint256) {
         uint256 a = _apr();
         return a.mul(_nav());
-    }
-
-    /**
-     * @notice Get the current reward for supplying APR in Compound
-     * @param newAmount Any amount that will be added to the total supply in a deposit
-     * @return The reward APR calculated by converting tokens value to USD with a decimal scaled up by 1e18
-     */
-    function getRewardAprForSupplyBase(uint256 newAmount)
-        public
-        view
-        returns (uint256)
-    {
-        // COMP issued per block to suppliers * (1 * 10 ^ 18)
-        uint256 compSpeedPerBlock = COMPTROLLER.compSupplySpeeds(address(cToken));
-        if (compSpeedPerBlock == 0) {
-            return 0;
-        }
-        // Approximate COMP issued per year to suppliers * (1 * 10 ^ 18)
-        uint256 compSpeedPerYear = compSpeedPerBlock * BLOCKS_PER_YEAR;
-
-        // The price of the asset in USD as an unsigned integer scaled up by 10 ^ 6
-        uint256 rewardTokenPriceInUsd = PRICE_FEED.price("COMP");
-
-        // https://docs.compound.finance/v2/prices/#underlying-price
-        // The price of the asset in USD as an unsigned integer scaled up by 10 ^ (36 - underlying asset decimals)
-        // upscale to price COMP percision 10 ^ 6
-        uint256 wantPriceInUsd = PRICE_FEED.getUnderlyingPrice(address(cToken))
-            .div(10**(30 - vault.decimals()));
-
-        uint256 cTokenTotalSupplyInWant = cToken.totalSupply().mul(cToken.exchangeRateStored()).div(1e18);
-
-        return rewardTokenPriceInUsd
-            .mul(compSpeedPerYear)
-            .mul(10**vault.decimals())
-            .div(cTokenTotalSupplyInWant.add(newAmount).mul(wantPriceInUsd));
     }
 
     function withdraw(uint256 amount)
@@ -366,9 +328,7 @@ contract GenericCompound is GenericLenderBase {
             reserves,
             reserverFactor
         );
-        uint256 newSupply = supplyRate.mul(BLOCKS_PER_YEAR);
-        uint256 rewardApr = getRewardAprForSupplyBase(amount);
-        return newSupply.add(rewardApr);
+        return supplyRate.mul(BLOCKS_PER_YEAR);
     }
 
     function protectedTokens()

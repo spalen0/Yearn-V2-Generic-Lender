@@ -73,6 +73,7 @@ def test_clone(
     chain.mine(1)
     assert cloned_strategy.harvestTrigger(1) == True
 
+    chain.sleep(1)
     tx = cloned_strategy.harvest({"from": strategist})
 
     assert (
@@ -87,6 +88,7 @@ def test_clone(
     chain.mine(1)
     assert cloned_strategy.harvestTrigger(1000) == True
 
+    chain.sleep(1)
     tx2 = cloned_strategy.harvest({"from": strategist})
 
     for i in range(15):

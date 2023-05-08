@@ -186,7 +186,11 @@ def test_trade_factory(
     gas_oracle,
     strategist_ms,
     comp,
+    has_rewards,
 ):
+    # OndoToken: Transfers not allowed or not right privillege
+    if not has_rewards:
+        return
     starting_balance = currency.balanceOf(strategist)
     decimals = currency.decimals()
     plugin = pluginType.at(strategy.lenders(0))

@@ -78,6 +78,8 @@ interface CTokenI {
      */
     event Failure(uint256 error, uint256 info, uint256 detail);
 
+    function comptroller() external view returns (address);
+
     function transfer(address dst, uint256 amount) external returns (bool);
 
     function transferFrom(

@@ -176,4 +176,6 @@ interface ComptrollerI {
     function compSupplyState(address) external view returns (CompMarketState memory);
 
     function compSupplierIndex(address, address) external view returns (uint256);
+
+    function getCompAddress() external view returns (address);
 }
