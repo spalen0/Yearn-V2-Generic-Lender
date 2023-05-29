@@ -263,9 +263,9 @@ contract GenericCompound is GenericLenderBase {
         }
         
         uint256 wantBalance = want.balanceOf(address(this));
-        // if (wantBalance > 0) {
+        if (wantBalance > 0) {
             cToken.mint(wantBalance);
-        // }
+        }
     }
 
     /**
