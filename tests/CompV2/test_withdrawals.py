@@ -47,7 +47,7 @@ def test_withdrawals_work(
     # TODO: remove all lenders -> to withdraw all amounts
     for j in status:
         plugin = interface.IGeneric(j[3])
-        strategy.safeRemoveLender(plugin)
+        strategy.safeRemoveLender(plugin, {"from": gov})
 
     assert currency.balanceOf(strategy) > (depositAmount + whale_deposit) * 0.999
 
@@ -93,7 +93,7 @@ def test_withdrawals_work(
 
         chain.sleep(1)
         strategy.harvest({"from": strategist})
-        strategy.safeRemoveLender(j[3])
+        strategy.safeRemoveLender(j[3], {"from": gov})
 
         # verify plugin is empty or just have less than a penny
         assert plugin.nav() < (valueOfCurrencyInDollars / 100) * 10**decimals

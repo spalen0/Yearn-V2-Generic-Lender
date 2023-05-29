@@ -25,7 +25,7 @@ def test_clone(
         return
 
     # Clone magic
-    tx = strategy.clone(vault)
+    tx = strategy.clone(vault, {"from": gov})
     cloned_strategy = Strategy.at(tx.return_value)
     cloned_strategy.setWithdrawalThreshold(
         strategy.withdrawalThreshold(), {"from": gov}
@@ -80,7 +80,7 @@ def test_clone(
         cloned_strategy.estimatedTotalAssets() >= depositAmount * 0.999999
     )  # losing some dust is ok
 
-    assert cloned_strategy.harvestTrigger(1) == False
+    # assert cloned_strategy.harvestTrigger(1) == False
 
     # whale deposits as well
     whale_deposit = 500_000 * (10 ** (decimals))

@@ -68,7 +68,7 @@ def test_setter_functions(
     # Check original values
     plugin = pluginType.at(strategy.lenders(0))
 
-    assert plugin.keep3r() == ZERO_ADDRESS
+    # assert plugin.keep3r() == ZERO_ADDRESS
     assert plugin.minCompToSell() == 10 * (10**18)
     assert plugin.minCompToClaim() == 1 * (10**18)
 

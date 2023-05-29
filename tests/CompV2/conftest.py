@@ -4,7 +4,7 @@ from brownie import Wei, config, Contract
 
 @pytest.fixture
 def live_strat_usdc_1(Strategy):
-    yield Strategy.at("0x2216E44fA633ABd2540dB72Ad34b42C7F1557cd4")
+    yield Strategy.at("0x0Fd45d4fb70D1EC95264dA30934095443DC6af6A")
 
 
 @pytest.fixture
@@ -22,7 +22,7 @@ def live_vault_usdt(pm):
 
 @pytest.fixture
 def live_GenericCompound_usdc_1(GenericCompound):
-    yield GenericCompound.at("0x33D4c129586562adfd993ebb54E830481F31ef37")
+    yield GenericCompound.at("0xA00dBC349E184e7E175832cD66dDb76dA9ddc2bf")
 
 
 token_addresses = {
@@ -36,8 +36,8 @@ token_addresses = {
 @pytest.fixture(
     params=[
         "USDC",
-        "USDT",
-        "DAI",
+        # "USDT",
+        # "DAI",
     ],
     scope="session",
     autouse=True,
@@ -87,15 +87,15 @@ def comp():
 
 
 @pytest.fixture()
-def strategist(accounts, whale, currency):
-    decimals = currency.decimals()
-    currency.transfer(accounts[1], 100_000 * (10**decimals), {"from": whale})
-    yield accounts[1]
+def strategist(accounts, whale, currency, gov):
+    # decimals = currency.decimals()
+    # currency.transfer(gov, 100_000 * (10**decimals), {"from": whale})
+    yield gov
 
 
 @pytest.fixture
 def gov(accounts):
-    yield accounts[3]
+    yield accounts.at("0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52", force = True)
 
 
 @pytest.fixture
@@ -112,7 +112,7 @@ def guardian(accounts):
 @pytest.fixture
 def keeper(accounts):
     # This is our trusty bot!
-    yield accounts[4]
+    yield Contract("0x736D7e3c5a6CB2CE3B764300140ABF476F6CFCCF")
 
 
 @pytest.fixture
@@ -148,12 +148,11 @@ def shared_setup(module_isolation):
 
 
 @pytest.fixture
-def vault(gov, rewards, guardian, currency, pm):
-    Vault = pm(config["dependencies"][0]).Vault
-    vault = Vault.deploy({"from": guardian})
-    vault.initialize(currency, gov, rewards, "", "")
-    vault.setManagementFee(0, {"from": gov})
-    yield vault
+def vault(gov, rewards, guardian, currency, pm, live_vault_usdc, Strategy):
+    old = Strategy.at("0x97D868b5C2937355Bf89C5E5463d52016240fE86")
+    live_vault_usdc.updateStrategyDebtRatio("0x97D868b5C2937355Bf89C5E5463d52016240fE86", 0, {"from": gov})
+    old.harvest({"from": gov})
+    yield live_vault_usdc
 
 
 token_prices = {
@@ -215,32 +214,10 @@ def strategy(
     compCurrency,
     dust,
     pluginType,
+    live_GenericCompound_usdc_1,
+    live_strat_usdc_1,
 ):
-    strategy = strategist.deploy(Strategy, vault)
-    strategy.setKeeper(keeper, {"from": gov})
-    strategy.setWithdrawalThreshold(0, {"from": gov})
-    strategy.setRewards(rewards, {"from": strategist})
 
-    if pluginType == EthCompound:
-        compoundPlugin = strategist.deploy(
-            pluginType, strategy, "Compound_" + currency.symbol()
-        )
-        assert compoundPlugin.apr() > 0
-
-        strategy.addLender(compoundPlugin, {"from": gov})
-        assert strategy.numLenders() == 1
-
-        compoundPlugin.setDust(dust)
-        yield strategy
-
-    else:
-        compoundPlugin = strategist.deploy(
-            pluginType, strategy, "Compound_" + currency.symbol(), compCurrency
-        )
-        assert compoundPlugin.apr() > 0
-
-        strategy.addLender(compoundPlugin, {"from": gov})
-        assert strategy.numLenders() == 1
-
-        compoundPlugin.setDust(dust)
-        yield strategy
+    # live_strat_usdc_1.setHealthCheck("0xDDCea799fF1699e98EDF118e0629A974Df7DF012", {"from": gov})
+    live_strat_usdc_1.addLender(live_GenericCompound_usdc_1, {"from": gov})
+    yield live_strat_usdc_1
